@@ -82,10 +82,10 @@ export default function SignalementFlow({ token }: { token?: string }) {
         {token && <p className="text-sm text-gray-600">Tu vas recevoir la confirmation dans WhatsApp.</p>}
         <p className="text-xs text-gray-400">Fait en {duree} s</p>
         <div className="flex flex-wrap justify-center gap-2">
-          <Link href={`/suivi/${resultat.numero_suivi}`} className="rounded-lg bg-violet-900 px-4 py-2 text-white">
+          <Link href={`/suivi/${resultat.numero_suivi}`} className="flex min-h-11 items-center rounded-lg bg-violet-900 px-5 text-white">
             Suivre
           </Link>
-          <Link href="/carte" className="rounded-lg border border-violet-900 px-4 py-2 text-violet-900">
+          <Link href="/carte" className="flex min-h-11 items-center rounded-lg border border-violet-900 px-5 text-violet-900">
             Voir la carte
           </Link>
         </div>
@@ -179,7 +179,7 @@ export default function SignalementFlow({ token }: { token?: string }) {
           ) : (
             <CameraCapture onPhoto={setPhoto} />
           )}
-          <button type="button" onClick={() => setEtape("categorie")} className="text-sm text-violet-900 underline">
+          <button type="button" onClick={() => setEtape("categorie")} className="min-h-11 text-sm text-violet-900 underline">
             Changer de catégorie
           </button>
         </>
@@ -193,11 +193,13 @@ export default function SignalementFlow({ token }: { token?: string }) {
             <>
               <p className="text-sm text-gray-600">Déplace le marqueur sur le problème (100 m max autour de toi).</p>
               <PointPicker gps={gps.position} point={pointEffectif} onChange={setPoint} />
+              {/* Action principale collée en bas : dans la zone du pouce, au-dessus de la barre système */}
+              <div className="sticky bottom-0 -mx-4 bg-[#f8f7fb]/95 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
               <button
                 type="button"
                 onClick={publier}
                 disabled={etape === "envoi" || gps.etat !== "ok"}
-                className="rounded-xl bg-lime-400 py-4 text-lg font-bold text-violet-950 disabled:opacity-50"
+                className="w-full rounded-xl bg-lime-400 py-4 text-lg font-bold text-violet-950 disabled:opacity-50"
               >
                 {etape === "envoi"
                   ? progression < 100
@@ -205,6 +207,7 @@ export default function SignalementFlow({ token }: { token?: string }) {
                     : "Vérification en cours…"
                   : "Publier le signalement"}
               </button>
+              </div>
             </>
           )}
         </>
@@ -230,7 +233,7 @@ function EtatGps({ etat, precision, onRelancer }: { etat: string; precision?: nu
     <div className={`flex items-center justify-between gap-2 rounded-xl p-3 text-sm ${cls}`}>
       <span>📍 {texte}</span>
       {relancer && (
-        <button type="button" onClick={onRelancer} className="shrink-0 rounded-lg bg-white px-3 py-1 font-semibold">
+        <button type="button" onClick={onRelancer} className="min-h-11 shrink-0 rounded-lg bg-white px-4 font-semibold">
           Réessayer
         </button>
       )}

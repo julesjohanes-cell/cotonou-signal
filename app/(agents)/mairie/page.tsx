@@ -140,8 +140,8 @@ function TableauDeBord({ session, onDeconnexion }: { session: Profil; onDeconnex
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <MapView marqueurs={marqueurs} selection={selection} onSelection={setSelection} className="h-80 w-full rounded-xl md:h-[70vh]" />
-        <div className="flex flex-col gap-3 md:h-[70vh] md:overflow-y-auto">
+        <MapView marqueurs={marqueurs} selection={selection} onSelection={setSelection} className="h-80 w-full rounded-xl md:h-[70dvh]" />
+        <div className="flex flex-col gap-3 md:h-[70dvh] md:overflow-y-auto">
           {choisi && (
             <Card
               size="small"

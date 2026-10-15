@@ -14,6 +14,12 @@ pnpm dev                   # http://localhost:3000
 Par défaut, l'app tourne sur des **données simulées** (badge MOCKS en haut à droite) : pas besoin d'attendre Django.
 Quand l'API est prête : `NEXT_PUBLIC_MOCKS=0` et `BACKEND_URL=http://localhost:8000` dans `.env.local`.
 
+## Mobile d'abord (obligatoire)
+
+Chaque écran est conçu et testé d'abord pour un téléphone de **360 px** de large : cibles tactiles de 44 px, action principale en bas
+de l'écran, champs en 16 px, hauteurs en `dvh`, aucun défilement horizontal. Ant Design n'est chargé que dans `app/(agents)/` :
+les pages citoyennes restent légères. `tests/e2e/mobile.spec.ts` vérifie tout cela à chaque PR. Détails : `AGENTS.md`, section 3.
+
 ## Tests et vérification
 
 ```bash
@@ -88,7 +94,7 @@ une seule URL, **pas de CORS** à configurer côté Django.
 | **Capture** | `/signaler` | `app/signaler`, `components/signalement`, `components/CameraCapture.tsx`, `hooks/useGeolocalisation.ts` |
 | **WhatsApp + suivi** | `/s/[token]`, `/suivi`, `/suivi/[numero]` | `app/s`, `app/suivi` |
 | **Carte** | `/carte` | `app/carte` |
-| **Bonus** | `/mairie` (Ant Design) | `app/mairie` — seulement si tous les P0 sont livrés ; sinon la mairie utilise **Django admin** |
+| **Bonus** | `/mairie`, `/connexion` (Ant Design) | `app/(agents)/` — seulement si tous les P0 sont livrés ; sinon la mairie utilise **Django admin** |
 | **Mentor front** | fichiers partagés, CI/CD, sécurité | `proxy.ts`, `lib/`, `hooks/useSignalements.ts`, `components/carte`, `components/ui.tsx`, `components/*Provider.tsx`, `.github/` |
 
 Raccourcis en mode simulé : `/s/expire` et `/s/utilise` (liens invalides), identifiant `elu` sur `/connexion`,

@@ -39,7 +39,7 @@ export default function Carte() {
         {isError && (
           <div className="flex items-center justify-between rounded-xl bg-red-50 p-3 text-sm text-red-800">
             Impossible de charger les signalements.
-            <button type="button" onClick={() => refetch()} className="rounded-lg bg-white px-3 py-1 font-semibold">
+            <button type="button" onClick={() => refetch()} className="min-h-11 rounded-lg bg-white px-4 font-semibold">
               Réessayer
             </button>
           </div>
@@ -52,7 +52,7 @@ export default function Carte() {
           <button
             type="button"
             onClick={() => setFiltre(null)}
-            className={`shrink-0 rounded-full px-3 py-1 text-sm ${!filtre ? "bg-violet-900 text-white" : "bg-white"}`}
+            className={`min-h-11 shrink-0 rounded-full px-4 text-sm ${!filtre ? "bg-violet-900 text-white" : "bg-white"}`}
           >
             Tout
           </button>
@@ -61,13 +61,13 @@ export default function Carte() {
               type="button"
               key={c.code}
               onClick={() => setFiltre(c.code)}
-              className={`shrink-0 rounded-full px-3 py-1 text-sm ${filtre === c.code ? "bg-violet-900 text-white" : "bg-white"}`}
+              className={`min-h-11 shrink-0 rounded-full px-4 text-sm ${filtre === c.code ? "bg-violet-900 text-white" : "bg-white"}`}
             >
               {c.icone} {c.libelle}
             </button>
           ))}
         </div>
-        <MapView marqueurs={marqueurs} selection={selection} onSelection={setSelection} className="h-[60vh] w-full rounded-xl" />
+        <MapView marqueurs={marqueurs} selection={selection} onSelection={setSelection} className="h-[55dvh] w-full rounded-xl" />
         <div className="flex flex-wrap gap-3 text-xs">
           {Object.entries(STATUTS)
             .filter(([k]) => k !== "rejete")
@@ -84,7 +84,7 @@ export default function Carte() {
               <p className="text-xs text-gray-500">Signalé {depuis(choisi.cree_le)} · {choisi.nb_confirmations} confirmation(s)</p>
               <BadgeStatut statut={choisi.statut} />
             </div>
-            <Link href={`/suivi/${choisi.numero_suivi}`} className="rounded-lg bg-violet-900 px-3 py-2 text-sm text-white">
+            <Link href={`/suivi/${choisi.numero_suivi}`} className="flex min-h-11 items-center rounded-lg bg-violet-900 px-4 text-sm text-white">
               Détails
             </Link>
           </div>

@@ -10,3 +10,13 @@ body {
   background: #f8f7fb;
   color: #1e1b2e;
 }
+
+/* Mobile d'abord */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  -webkit-tap-highlight-color: transparent;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}

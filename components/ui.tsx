@@ -7,18 +7,18 @@ import { MOCKS } from "@/lib/api";
 
 export function Entete({ titre, retour = "/" }: { titre?: string; retour?: string | null }) {
   return (
-    <header className="sticky top-0 z-10 flex items-center gap-3 bg-violet-950 px-4 py-3 text-white">
+    <header className="sticky top-0 z-10 flex min-h-14 items-center gap-2 bg-violet-950 px-2 pt-[env(safe-area-inset-top)] text-white">
       {retour !== null && (
-        <Link href={retour} className="text-xl" aria-label="Retour">
+        <Link href={retour} className="flex h-11 w-11 items-center justify-center text-xl" aria-label="Retour">
           ←
         </Link>
       )}
-      <Link href="/" className="font-bold tracking-tight">
+      <Link href="/" className="flex h-11 items-center px-2 font-bold tracking-tight">
         Cotonou <span className="text-lime-400">Signale</span>
       </Link>
       {titre && <span className="truncate text-sm text-violet-200">· {titre}</span>}
       {MOCKS && (
-        <span className="ml-auto rounded bg-lime-400 px-2 py-0.5 text-[10px] font-bold text-violet-950">MOCKS</span>
+        <span className="mr-2 ml-auto rounded bg-lime-400 px-2 py-0.5 text-[10px] font-bold text-violet-950">MOCKS</span>
       )}
     </header>
   );

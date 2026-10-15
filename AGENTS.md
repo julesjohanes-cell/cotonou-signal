@@ -45,18 +45,35 @@ Ne jamais inventer une fonctionnalité hors backlog, ni un chiffre, un témoigna
 - `"use client"` sur la plus petite frontière interactive. Paramètres de route via `useParams()`.
 - Fichiers partagés (`lib/`, `components/carte`, `components/ui.tsx`, `components/AntdProvider.tsx`) : modifiés seulement avec l'accord du mentor front.
 
-## 3. Interface
+## 3. Mobile d'abord (obligatoire) et interface
 
-- Interface en **français**, pensée **mobile d'abord** (écran de 390 px).
+Les citoyens signalent depuis la rue, sur des téléphones d'entrée de gamme et des forfaits limités.
+**Chaque écran est conçu, codé et testé d'abord pour un téléphone de 360 px de large**, puis élargi si besoin. Jamais l'inverse.
+
+- Classes Tailwind **sans préfixe = mobile** ; `sm:`, `md:`… servent seulement à agrandir. Pas de mise en page « bureau » rattrapée ensuite.
+- **Cibles tactiles de 44 px minimum** (`min-h-11`) ; une seule action principale par écran, **en bas, dans la zone du pouce**
+  (bouton collé en bas avec `sticky bottom-0`).
+- Texte d'au moins **16 px dans les champs** (sinon iOS zoome) ; aucune fonction qui dépende du survol de la souris.
+- Hauteurs en **`dvh`** (pas `vh`) ; marges des écrans à encoche avec `env(safe-area-inset-*)`.
+- **Aucun défilement horizontal à 360 px** : vérifié par `tests/e2e/mobile.spec.ts`, avec la taille des cibles tactiles.
+- **Réseau lent** : photo compressée et progression d'envoi visible ; chargement et erreur toujours affichés ;
+  l'écran reste utilisable si la carte ne charge pas ; aucune librairie lourde sur les pages citoyennes.
+- **Ant Design n'est chargé que dans `app/(agents)/`** (espace mairie et connexion) ; les pages citoyennes utilisent Tailwind seul
+  (vérifié en e2e). Ne jamais remettre antd dans `app/layout.tsx`.
+- Les maquettes Claude Design se font d'abord en format mobile. On teste sur un vrai Android d'entrée de gamme, puis un iPhone ;
+  dans le navigateur, mode appareil 360 px et réseau « 3G lente ».
+
+**Interface**
+
+- Interface en **français**.
 - **Pas de back-office en front par défaut** : la mairie travaille dans **Django admin** (équipe back). L'espace `/mairie`
-  (Ant Design) est un **bonus**, à toucher seulement quand tous les P0 sont livrés.
-- **Tailwind** pour la mise en page et le parcours citoyen ; **Ant Design** pour les composants riches (formulaires, tableaux, messages).
-  Pas de gros composant antd sur `/signaler` (page légère, petits forfaits).
+  (`app/(agents)/mairie`, Ant Design) est un **bonus**, à toucher seulement quand tous les P0 sont livrés.
+- **Tailwind** pour la mise en page et les pages citoyennes ; **Ant Design** pour les composants riches de l'espace agents.
 - Un seul thème : `components/AntdProvider.tsx`. Pas de `theme={{…}}` dans une page, pas de couleur brute hors des couleurs du brief,
   pas de `!important`, pas de sélecteur `.ant-*`, pas de style global ponctuel.
 - Boutons antd choisis par intention : `primary` = action principale, défaut = secondaire, `text` = tertiaire, `link` seulement avec un vrai `href`.
   Aucune classe de couleur, bordure ou rayon posée sur un `Button`.
-- Formulaires : composants antd dans `Form.Item`, pas d'inputs natifs dans `/mairie`.
+- Formulaires de l'espace agents : composants antd dans `Form.Item`, pas d'inputs natifs.
 - Retours à l'utilisateur : `App.useApp().message` pour un retour éphémère ; `Modal.confirm` avant une action destructive ;
   une modale seulement pour une décision qui bloque vraiment la suite.
 - Chaque écran gère ses états : chargement, vide, erreur, contenu long. Les refus du serveur s'affichent tels quels (`messageRefus`).
@@ -84,7 +101,7 @@ Ne jamais inventer une fonctionnalité hors backlog, ni un chiffre, un témoigna
 ## 6. Vérifier dans le navigateur
 
 - Ouvrir l'écran réel sur un téléphone, via le tunnel HTTPS (caméra et GPS l'exigent).
-- Tester : clic, chargement, erreur, état vide ; `/mairie` aussi sur ordinateur.
+- Tester d'abord à 360 px (vrai téléphone ou mode appareil) : toucher, chargement, erreur, état vide ; `/mairie` aussi sur ordinateur.
 - Console du navigateur sans erreur. Les liens modifiés ont été ouverts.
 
 ## 7. Documentation

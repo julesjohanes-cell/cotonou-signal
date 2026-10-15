@@ -5,7 +5,7 @@ export default function Accueil() {
   return (
     <>
       <Entete retour={null} />
-      <main className="flex flex-1 flex-col gap-6 p-6">
+      <main className="flex flex-1 flex-col gap-6 p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:p-6">
         <section className="rounded-2xl bg-violet-950 p-6 text-white">
           <h1 className="text-3xl font-extrabold leading-tight">
             Un problème dans ta rue ?<br />
@@ -30,7 +30,7 @@ export default function Accueil() {
         <p className="text-sm text-gray-500">
           Pas de données mobiles ? Écris « Signaler » sur WhatsApp au numéro de la plateforme.
         </p>
-        <Link href="/mairie" className="mt-auto text-center text-sm text-violet-900 underline">
+        <Link href="/mairie" className="mt-auto flex min-h-11 items-center justify-center text-sm text-violet-900 underline">
           Espace mairie (bonus)
         </Link>
       </main>
