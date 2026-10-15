@@ -4,7 +4,11 @@ Des signalements citoyens vérifiés, pour une ville plus propre. Cotonou Code l
 
 ## Démarrer (2 min)
 
+Dépôt : https://github.com/julesjohanes-cell/cotonou-signal
+
 ```bash
+git clone https://github.com/julesjohanes-cell/cotonou-signal.git
+cd cotonou-signal
 corepack enable            # active pnpm (fourni avec Node 22)
 pnpm install
 cp .env.example .env.local
