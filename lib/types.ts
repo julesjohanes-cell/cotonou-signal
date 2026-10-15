@@ -1,77 +1,92 @@
-// Contrat d'API partagé avec le back (Django). Toute modif = prévenir Jean + mettre à jour le README.
+// Contrat d'API avec Django. Source de vérité : contrat/openapi.yaml (copie de docs/openapi.yaml du dépôt back).
+// Les types sont générés dans lib/generated/ par `pnpm api:generate` : on ne les retape jamais,
+// on les ré-exporte ou on les dérive ici. Le contrat change ? `pnpm api:sync`, puis on adapte le front dans la même PR.
+import type {
+  AgentReport,
+  AgentStatusEnum,
+  ChannelEnum,
+  LoginResult,
+  ReportDetail,
+  ReportStatusEnum,
+} from "./generated/api-django";
 
-export type CategorieCode =
-  | "depot_ordures"
-  | "caniveau_bouche"
-  | "brulage_dechets"
-  | "eau_stagnante"
-  | "chaussee_degradee"
-  | "regard_dangereux"
-  | "eclairage_panne"
-  | "vehicule_abandonne"
-  | "autre";
+export type {
+  AgentReport,
+  AgentReportList,
+  CaptureSessionCreated,
+  CaptureSessionState,
+  Category,
+  LoginRequest,
+  LoginResult,
+  ReportCreated,
+  ReportDetail,
+  StatusChange,
+} from "./generated/api-django";
 
-export type Statut = "nouveau" | "pris_en_charge" | "resolu" | "rejete";
+/** pending, rejected, moderation, published, in_progress, resolved. */
+export type Statut = ReportStatusEnum;
+/** Ce qu'un agent peut demander : in_progress puis resolved. */
+export type StatutAgent = AgentStatusEnum;
+export type Canal = ChannelEnum;
 
-export type Source = "web" | "whatsapp";
+// Le schéma marque « facultatifs » les champs qui ont une valeur par défaut côté Django (statut, compteur…),
+// mais l'API les renvoie toujours : ces deux types le disent une fois pour toutes.
+/** GET /reports/{tracking_code} : suivi citoyen. Jamais de canal, de verdict IA ni de position du citoyen. */
+export type Suivi = ReportDetail & Required<Pick<ReportDetail, "status" | "support_count" | "description">>;
+/** GET /agent/reports : le suivi + le canal et le verdict IA, pour les agents uniquement. */
+export type SignalementAgent = AgentReport &
+  Required<Pick<AgentReport, "status" | "support_count" | "description" | "channel">>;
 
-/** Ce que le public a le droit de voir. JAMAIS : téléphone, position GPS du citoyen, nom. */
-export interface SignalementPublic {
-  numero_suivi: string; // ex. "CS-2026-00042"
-  categorie: CategorieCode;
-  statut: Statut;
-  lat: number; // position du PROBLÈME (point ajusté), pas celle du citoyen
-  lng: number;
-  nb_confirmations: number; // doublons regroupés : "+1"
-  photo_url: string | null; // photo floutée (visages, plaques)
-  photo_apres_url: string | null;
-  cree_le: string; // ISO 8601
-  mis_a_jour_le: string;
+// ---------- GET /reports (carte) ----------
+// Réponse GeoJSON, non décrite par le schéma OpenAPI : forme tirée de contrat/api-contract.md.
+// ATTENTION : GeoJSON impose [longitude, latitude]. La conversion se fait à un seul endroit : depuisGeoJSON (lib/geo.ts).
+export interface ProprietesCarte {
+  tracking_code: string;
+  category: string;
+  status: Statut;
+  support_count: number;
+  photo_url: string;
+  created_at: string;
 }
 
-/** Vue agent mairie (authentifiée). */
-export interface SignalementMairie extends SignalementPublic {
-  service: string;
-  source: Source;
-  precision_m: number;
-  description: string | null;
+export interface PointGeoJSON {
+  type: "Feature";
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: ProprietesCarte;
 }
 
-export interface CreationReponse {
-  numero_suivi: string;
-  statut: Statut;
-  doublon: boolean; // true = rattaché à un signalement existant (+1)
+export interface CarteGeoJSON {
+  type: "FeatureCollection";
+  features: PointGeoJSON[];
 }
 
-export type CodeRefus =
-  | "photo_hors_sujet"
-  | "capture_ecran"
-  | "photo_ancienne"
-  | "hors_cotonou"
-  | "trop_loin"
-  | "precision_insuffisante"
-  | "lien_expire"
-  | "lien_utilise"
-  | "non_autorise";
+/** Un point de la carte, prêt pour l'interface : jamais la position du citoyen, seulement celle du problème. */
+export type SignalementCarte = ProprietesCarte & { lat: number; lng: number };
 
-export interface ErreurApi {
-  code: CodeRefus | string;
-  message: string;
+// ---------- Erreurs ----------
+/** Codes du contrat. Le front affiche `message` et se base sur `code`. */
+export type CodeErreur =
+  | "INVALID_INPUT"
+  | "PHOTO_INVALID"
+  | "UNAUTHENTICATED"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "TOKEN_USED"
+  | "INVALID_TRANSITION"
+  | "TOKEN_EXPIRED"
+  | "OUT_OF_ZONE"
+  | "TOO_FAR"
+  | "GPS_INACCURATE"
+  | "PHOTO_REUSED"
+  | "PHOTO_MISMATCH"
+  | "PHOTO_SCREENSHOT"
+  | "RATE_LIMITED";
+
+/** Forme unique de toute erreur : celles de Django et celles des routes Next (/session, proxy.ts). */
+export interface CorpsErreur {
+  error: { code: CodeErreur | string; message: string; details?: Record<string, unknown> };
 }
 
-export interface LienWhatsApp {
-  valide: boolean;
-  raison?: "expire" | "utilise" | "inconnu";
-  expire_a?: string;
-}
-
-/** Réponse de Django à la connexion. Le token ne quitte jamais le serveur Next (cookie httpOnly). */
-export interface Session {
-  token: string;
-  nom: string;
-  role: "agent" | "elu";
-  service: string | null; // null = tous les services
-}
-
-/** Ce que l'interface connaît de l'agent connecté : aucun secret. */
-export type Profil = Omit<Session, "token">;
+// ---------- Session agent (bonus) ----------
+/** Ce que l'interface connaît de l'agent connecté (cookie cs_profil) : identifiant et services, aucun secret. */
+export type Profil = LoginResult["user"];

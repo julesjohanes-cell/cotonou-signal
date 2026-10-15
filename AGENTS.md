@@ -23,7 +23,7 @@ Ce fichier est la **source unique** des règles du front, au format ouvert [AGEN
 1. Ce fichier.
 2. `docs/design-thinking.md` : personas, questions « Comment pourrions-nous », parcours papier testés, priorités.
 3. La maquette validée de l'écran (Claude Design, faite avec le design system « Cotonou Signale »). Pas de maquette validée = on ne code pas l'écran.
-4. `README.md` (contrat d'API) et `lib/types.ts`.
+4. Le contrat d'API : `contrat/api-contract.md` (lisible) et `contrat/openapi.yaml` (source de vérité), puis `lib/types.ts`.
 5. Les composants et modules existants (`components/`, `lib/`, `hooks/`) : **chercher une brique existante avant d'en créer une**.
 
 Annoncer avant de commencer : l'écran concerné, le ticket (issue), les états et tailles d'écran qui serviront à la vérification.
@@ -37,8 +37,13 @@ Ne jamais inventer une fonctionnalité hors backlog, ni un chiffre, un témoigna
   rafraîchissement auto). Les hooks appellent `lib/api.ts` (axios, version simulée + version réelle).
   Jamais de `fetch` ni d'axios dans un composant. Les clés de requête sont centralisées (`cles`) ; une mutation invalide les données qu'elle modifie.
 - Dates : `lib/dates.ts` (dayjs, en français). Icônes `@ant-design/icons` : dans les composants clients uniquement.
-- `lib/types.ts` = contrat avec Django. Les types d'API ne sont jamais retapés ailleurs ; on les dérive (`Pick`, `Omit`).
-  Modifier le contrat = prévenir l'équipe back et mettre à jour le README dans la même PR.
+- **Contrat avec Django** : `contrat/openapi.yaml`, copie du dépôt back. Types générés dans `lib/generated/` (`pnpm api:generate`,
+  jamais modifiés à la main), ré-exportés ou dérivés (`Pick`, `Omit`) dans `lib/types.ts` ; jamais retapés ailleurs.
+  Le contrat se change **côté back d'abord** (PR sur `docs/openapi.yaml`), puis `pnpm api:sync` ici et adaptation du front
+  dans la même PR. Après le gel de 20h20 : uniquement des ajouts.
+- **GeoJSON = `[longitude, latitude]`** : la conversion se fait uniquement dans `depuisGeoJSON` (`lib/geo.ts`).
+- Erreurs : une seule forme, `{"error": {"code", "message", "details"}}` (Django comme routes Next). L'écran affiche `message`,
+  la logique se base sur `code` (jamais sur le texte du message).
 - Catégories, services, statuts : uniquement depuis `lib/categories.ts`. Cartes : uniquement via `@/components/carte`.
 - Pas de fichiers fourre-tout `helpers`, `utils` ni `*_partN` : nommer chaque module par sa responsabilité (`geo.ts`, `image.ts`…).
 - **400 lignes maximum par fichier** : au-delà, découper par responsabilité.
@@ -85,7 +90,7 @@ Les citoyens signalent depuis la rue, sur des téléphones d'entrée de gamme et
 - Formulaires de l'espace agents : composants antd dans `Form.Item`, pas d'inputs natifs.
 - Retours à l'utilisateur : `App.useApp().message` pour un retour éphémère ; `Modal.confirm` avant une action destructive ;
   une modale seulement pour une décision qui bloque vraiment la suite.
-- Chaque écran gère ses états : chargement, vide, erreur, contenu long. Les refus du serveur s'affichent tels quels (`messageRefus`).
+- Chaque écran gère ses états : chargement, vide, erreur, contenu long. Les refus du serveur s'affichent tels quels (`message` de l'`ApiError`).
 
 ## 4. Tests : obligatoires après chaque fonctionnalité
 
@@ -134,8 +139,9 @@ Les citoyens signalent depuis la rue, sur des téléphones d'entrée de gamme et
 
 **Routes**
 
-- Publiques : `/`, `/signaler`, `/s/[token]`, `/carte`, `/suivi/*`, et en API `/api/signalements*`, `/api/wa/*`.
-- Protégées **côté serveur** par `proxy.ts` : pages `/mairie/*` (sinon redirection vers `/connexion`) et API `/api/mairie/*` (sinon 401).
+- Publiques : `/`, `/signaler`, `/capture/[token]`, `/carte`, `/suivi/*`, et en API `/api/v1/categories`, `/api/v1/reports*`,
+  `/api/v1/capture-sessions*`.
+- Protégées **côté serveur** par `proxy.ts` : pages `/mairie/*` (sinon redirection vers `/connexion`) et API `/api/v1/agent/*` (sinon 401).
 - Toute nouvelle page ou API réservée aux agents s'ajoute au `matcher` de `proxy.ts` **et** à `PAGES_PROTEGEES` / `API_PROTEGEES`
   de `lib/securite.ts`, avec un test e2e « sans session = refus ». Masquer un bouton ou un lien n'est **pas** une protection.
 - Le vrai contrôle d'accès reste celui de Django (permissions DRF par rôle) ; Django admin est réservé aux comptes staff.
@@ -143,17 +149,19 @@ Les citoyens signalent depuis la rue, sur des téléphones d'entrée de gamme et
 **Session et secrets**
 
 - Le jeton de session vit **uniquement** dans le cookie httpOnly `cs_jeton` (SameSite=Strict, Secure en HTTPS), posé par la route `/session`.
-  Jamais dans `localStorage`, `sessionStorage`, une URL, un log ou le code. L'interface ne lit que `cs_profil` (nom, rôle, service), sans secret.
+  Jamais dans `localStorage`, `sessionStorage`, une URL, un log ou le code. L'interface ne lit que `cs_profil` (identifiant, services), sans secret.
 - Aucun secret dans le code ni dans une variable `NEXT_PUBLIC_*` : ces variables sont copiées dans le JavaScript envoyé au navigateur.
 - Redirections : uniquement vers un chemin interne (`suiteSure`). Requêtes qui modifient : même origine (vérifiée par le proxy) + SameSite=Strict.
 
 **Code**
 
 - Jamais `dangerouslySetInnerHTML`, jamais de HTML construit à la main avec une donnée saisie : React échappe le texte, on le laisse faire.
-- Entrées : le front valide type et longueur pour guider (photo : image de 15 Mo maximum ; description : 500 caractères) ; Django revalide tout.
+- Entrées : le front valide type et longueur pour guider, avec les seuils du back (photo JPEG, PNG ou WebP de 8 Mo maximum après
+  compression ; description de 280 caractères ; GPS 50 m ; point à 100 m) ; Django revalide tout.
 - En-têtes de sécurité dans `next.config.ts` (CSP, X-Frame-Options, Permissions-Policy, HSTS) : ne jamais les affaiblir.
   Un nouveau domaine externe s'ajoute explicitement à la CSP, dans une PR qui le justifie.
-- Lien WhatsApp `/s/[token]` : usage unique, 10 minutes, `Referrer-Policy: no-referrer`, jamais affiché dans les logs ni indexé.
+- Lien WhatsApp `/capture/[token]` (envoyé par le back) : usage unique, 10 minutes, `Referrer-Policy: no-referrer`,
+  jamais affiché dans les logs ni indexé.
 - Dépendances : `pnpm audit --prod` tourne en CI ; aucune dépendance ajoutée sans justification dans la PR.
 
 **Vie privée**

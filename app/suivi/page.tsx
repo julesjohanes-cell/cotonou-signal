@@ -22,7 +22,10 @@ export default function SaisieSuivi() {
           <input
             value={numero}
             onChange={(e) => setNumero(e.target.value)}
-            placeholder="CS-2026-00001"
+            placeholder="CS-7K3F9Q"
+            maxLength={12}
+            autoCapitalize="characters"
+            aria-label="Numéro de suivi"
             className="flex-1 rounded-xl border border-contour bg-surface p-3 font-mono uppercase placeholder:text-encre-pale"
           />
           <button className="min-h-11 rounded-xl bg-violet px-5 font-semibold text-sur-marque">OK</button>

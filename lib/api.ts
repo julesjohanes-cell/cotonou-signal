@@ -1,28 +1,77 @@
 // Couche réseau unique (axios). Les écrans n'appellent jamais ce fichier directement :
 // ils passent par les hooks TanStack Query de hooks/useSignalements.ts.
+// Contrat : contrat/openapi.yaml. Préfixe /api/v1, snake_case, dates ISO,
+// toute erreur au format {"error": {"code", "message", "details"}}.
 import axios, { type AxiosError } from "axios";
 import type {
-  CategorieCode, CreationReponse, ErreurApi, LienWhatsApp, Profil,
-  SignalementMairie, SignalementPublic, Statut,
+  AgentReportList, CaptureSessionCreated, CaptureSessionState, CarteGeoJSON, CorpsErreur, LoginRequest, Profil,
+  ReportCreated, SignalementAgent, SignalementCarte, Statut, StatutAgent, Suivi,
 } from "./types";
 import { COOKIE_PROFIL } from "./securite";
-import { mockStore, attendre } from "./mocks";
-import { categorie } from "./categories";
-import { distanceM, estDansCotonou, type Position } from "./geo";
+import { attendre, codeSuivi, mockStore } from "./mocks";
+import { categorie, ORDRE_STATUTS, type CategorieCode } from "./categories";
+import { depuisGeoJSON, DISTANCE_MAX_M, distanceM, estDansCotonou, PRECISION_MAX_M, type Position } from "./geo";
 
 export const MOCKS = process.env.NEXT_PUBLIC_MOCKS !== "0";
-const MOCK_REFUS = process.env.NEXT_PUBLIC_MOCK_REFUS; // ex. "photo_hors_sujet" pour tester l'écran de refus
+const MOCK_REFUS = process.env.NEXT_PUBLIC_MOCK_REFUS; // ex. PHOTO_MISMATCH pour tester l'écran de refus
 
 export class ApiError extends Error {
-  constructor(public code: string, message: string, public status = 0) {
+  constructor(
+    public code: string,
+    message: string,
+    public status = 0,
+    public details: Record<string, unknown> = {},
+  ) {
     super(message);
   }
 }
 
+// ---------- Messages ----------
+// En vrai, l'écran affiche le `message` envoyé par Django. Ces textes (repris de config/errors.py du back)
+// servent au mode simulé, aux erreurs réseau et aux réponses sans message.
+const MESSAGES: Record<string, string> = {
+  INVALID_INPUT: "Certaines informations sont manquantes ou incorrectes.",
+  UNAUTHENTICATED: "Connexion requise.",
+  FORBIDDEN: "Vous n'avez pas le droit d'effectuer cette action.",
+  NOT_FOUND: "Élément introuvable.",
+  TOKEN_USED: "Ce lien de signalement a déjà été utilisé. Demandez-en un nouveau.",
+  INVALID_TRANSITION: "Ce changement de statut n'est pas autorisé.",
+  TOKEN_EXPIRED: "Ce lien de signalement a expiré. Demandez-en un nouveau.",
+  PHOTO_INVALID: "La photo est illisible ou son format n'est pas accepté (JPEG, PNG ou WebP).",
+  OUT_OF_ZONE: "Vous semblez être en dehors de Cotonou.",
+  TOO_FAR: "Le point est trop loin de votre position.",
+  GPS_INACCURATE: "Votre position GPS n'est pas assez précise. Attendez quelques secondes ou déplacez-vous.",
+  PHOTO_REUSED: "Cette photo a déjà été utilisée pour un autre signalement.",
+  PHOTO_MISMATCH: "La photo ne correspond pas à la catégorie choisie.",
+  PHOTO_SCREENSHOT: "Les captures d'écran ne sont pas acceptées. Prenez la photo sur place.",
+  RATE_LIMITED: "Trop de requêtes. Réessayez dans un instant.",
+  NETWORK: "Connexion impossible. Vérifiez votre connexion internet.",
+  TIMEOUT: "Le réseau est trop lent. Réessayez dans un instant.",
+};
+
+export function messageErreur(code: string, defaut?: string): string {
+  return MESSAGES[code] ?? defaut ?? "Une erreur est survenue. Réessayez.";
+}
+
+/** Toute erreur axios devient une ApiError { code, message, status, details } : un seul format pour les écrans. */
+export function versApiError(e: AxiosError<Partial<CorpsErreur>>): ApiError {
+  if (!e.response) {
+    const code = e.code === "ECONNABORTED" || e.code === "ETIMEDOUT" ? "TIMEOUT" : "NETWORK";
+    return new ApiError(code, messageErreur(code));
+  }
+  const { status, data } = e.response;
+  const err = typeof data === "object" && data ? data.error : undefined;
+  const code = err?.code ?? `HTTP_${status}`;
+  return new ApiError(code, err?.message || messageErreur(code, `Erreur du serveur (${status}).`), status, err?.details ?? {});
+}
+
+const erreurSimulee = (code: string, status = 422, details: Record<string, unknown> = {}) =>
+  new ApiError(code, messageErreur(code), status, details);
+
 // ---------- Session agent (bonus) ----------
 // Le jeton DRF vit dans un cookie httpOnly posé par la route /session : le JavaScript ne le voit jamais
-// (un script injecté ne peut pas le voler). proxy.ts l'ajoute aux appels /api/mairie.
-// L'interface ne lit que le cookie de profil (nom, rôle, service), sans secret.
+// (un script injecté ne peut pas le voler). proxy.ts l'ajoute aux appels /api/v1/agent.
+// L'interface ne lit que le cookie de profil (identifiant, services), sans secret.
 const EVT_SESSION = "cs-session";
 const notifierSession = () => {
   if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT_SESSION));
@@ -47,122 +96,161 @@ export function abonnerSession(rappel: () => void): () => void {
 
 // ---------- Client axios ----------
 // Même origine : Next relaie /api vers Django (next.config.ts), donc pas de CORS.
-const client = axios.create({ baseURL: "/api", timeout: 30_000, headers: { Accept: "application/json" } });
+const client = axios.create({ baseURL: "/api/v1", timeout: 30_000, headers: { Accept: "application/json" } });
 
-// Toute erreur devient une ApiError { code, message, status } : les écrans n'ont qu'un format à gérer
 client.interceptors.response.use(
   (r) => r,
-  (e: AxiosError<Partial<ErreurApi>>) => {
-    if (!e.response) {
-      const code = e.code === "ECONNABORTED" ? "delai" : "reseau";
-      return Promise.reject(new ApiError(code, messageRefus(code)));
-    }
-    if (e.response.status === 401) notifierSession();
-    const d = e.response.data ?? {};
-    return Promise.reject(
-      new ApiError(d.code ?? `http_${e.response.status}`, d.message ?? `Erreur serveur (${e.response.status})`, e.response.status),
-    );
+  (e: AxiosError<Partial<CorpsErreur>>) => {
+    if (e.response?.status === 401) notifierSession();
+    return Promise.reject(versApiError(e));
   },
 );
 
-const versPublic = (s: SignalementMairie): SignalementPublic => ({
-  numero_suivi: s.numero_suivi, categorie: s.categorie, statut: s.statut, lat: s.lat, lng: s.lng,
-  nb_confirmations: s.nb_confirmations, photo_url: s.photo_url, photo_apres_url: s.photo_apres_url,
-  cree_le: s.cree_le, mis_a_jour_le: s.mis_a_jour_le,
-});
-
-// ---------- Public ----------
-export async function listerPublic(): Promise<SignalementPublic[]> {
-  if (MOCKS) {
-    await attendre();
-    return mockStore.signalements.filter((s) => s.statut !== "rejete").map(versPublic);
-  }
-  return (await client.get<SignalementPublic[]>("/signalements/public")).data;
+// ---------- Public : carte et suivi ----------
+/** Champs publics uniquement (liste blanche) : jamais le canal, le verdict IA ni la position du citoyen. */
+function versSuivi(s: SignalementAgent): Suivi {
+  const { tracking_code, category, category_label, status, description, lat, lng, photo_url, photo_after_url } = s;
+  const { support_count, created_at, updated_at, resolved_at, history } = s;
+  return {
+    tracking_code, category, category_label, status, description, lat, lng, photo_url, photo_after_url,
+    support_count, created_at, updated_at, resolved_at, history,
+  };
 }
 
-export async function suivre(numero: string): Promise<SignalementPublic> {
+export async function listerCarte(): Promise<SignalementCarte[]> {
   if (MOCKS) {
     await attendre();
-    const s = mockStore.signalements.find((x) => x.numero_suivi === numero.trim().toUpperCase());
-    if (!s) throw new ApiError("introuvable", "Aucun signalement avec ce numéro.", 404);
-    return versPublic(s);
+    // Même chemin que le vrai back : GeoJSON [lng, lat], puis conversion
+    const fc: CarteGeoJSON = {
+      type: "FeatureCollection",
+      features: mockStore.signalements
+        .filter((s) => ORDRE_STATUTS.includes(s.status))
+        .map(({ tracking_code, category, status, support_count, photo_url, created_at, lat, lng }) => ({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [lng, lat] },
+          properties: { tracking_code, category, status, support_count, photo_url, created_at },
+        })),
+    };
+    return depuisGeoJSON(fc);
   }
-  return (await client.get<SignalementPublic>(`/signalements/${encodeURIComponent(numero.trim())}`)).data;
+  return depuisGeoJSON((await client.get<CarteGeoJSON>("/reports")).data);
 }
 
+export async function suivre(trackingCode: string): Promise<Suivi> {
+  const code = trackingCode.trim().toUpperCase();
+  if (MOCKS) {
+    await attendre();
+    const s = mockStore.signalements.find((x) => x.tracking_code === code);
+    if (!s) throw erreurSimulee("NOT_FOUND", 404);
+    return versSuivi(s);
+  }
+  return (await client.get<Suivi>(`/reports/${encodeURIComponent(code)}`)).data;
+}
+
+// ---------- Liens de capture (WhatsApp et web) ----------
+export async function creerLienCapture(): Promise<CaptureSessionCreated> {
+  if (MOCKS) {
+    await attendre(100);
+    const token = `simule-${Date.now()}`;
+    return { token, expires_at: new Date(Date.now() + 10 * 60_000).toISOString(), capture_url: `/capture/${token}` };
+  }
+  return (await client.post<CaptureSessionCreated>("/capture-sessions")).data;
+}
+
+/** 200 si le lien est utilisable ; sinon ApiError NOT_FOUND (404), TOKEN_USED (409) ou TOKEN_EXPIRED (410). */
+export async function verifierLienCapture(token: string): Promise<CaptureSessionState> {
+  if (MOCKS) {
+    await attendre();
+    if (token === "expire") throw erreurSimulee("TOKEN_EXPIRED", 410);
+    if (token === "utilise") throw erreurSimulee("TOKEN_USED", 409);
+    if (token === "inconnu") throw new ApiError("NOT_FOUND", "Ce lien de signalement est inconnu.", 404);
+    return { valid: true, expires_at: new Date(Date.now() + 10 * 60_000).toISOString() };
+  }
+  return (await client.get<CaptureSessionState>(`/capture-sessions/${encodeURIComponent(token)}`)).data;
+}
+
+// ---------- Création d'un signalement ----------
 export interface NouveauSignalement {
-  categorie: CategorieCode;
+  category: CategorieCode;
   photo: Blob;
-  photo_prise_le: number; // timestamp ms
-  gps: Position; // position du citoyen (jamais publique)
-  point: { lat: number; lng: number }; // point du problème, ajusté sur la carte
+  position: Position; // position du téléphone : vérifiée par le serveur, jamais publique
+  point: { lat: number; lng: number }; // point du problème, ajusté sur la carte (100 m max)
   description?: string;
-  token?: string; // parcours WhatsApp
+  jeton?: string; // lien de capture WhatsApp ; absent sur le web
   onProgression?: (pourcentage: number) => void; // envoi de la photo (réseau lent)
 }
 
-export async function creerSignalement(d: NouveauSignalement): Promise<CreationReponse> {
-  if (MOCKS) {
-    for (const p of [30, 70, 100]) {
-      await attendre(250);
-      d.onProgression?.(p);
-    }
-    if (MOCK_REFUS) throw new ApiError(MOCK_REFUS, messageRefus(MOCK_REFUS), 422);
-    if (!estDansCotonou(d.gps.lat, d.gps.lng)) throw new ApiError("hors_cotonou", messageRefus("hors_cotonou"), 422);
-    if (distanceM(d.gps, d.point) > 100) throw new ApiError("trop_loin", messageRefus("trop_loin"), 422);
-    const existant = mockStore.signalements.find(
-      (s) => s.categorie === d.categorie && s.statut !== "resolu" && distanceM(s, d.point) < 30,
-    );
-    if (existant) {
-      existant.nb_confirmations += 1;
-      return { numero_suivi: existant.numero_suivi, statut: existant.statut, doublon: true };
-    }
-    const numero = `CS-2026-${String(mockStore.compteur++).padStart(5, "0")}`;
-    const now = new Date().toISOString();
-    mockStore.signalements.unshift({
-      numero_suivi: numero, categorie: d.categorie, statut: "nouveau", lat: d.point.lat, lng: d.point.lng,
-      nb_confirmations: 1, photo_url: URL.createObjectURL(d.photo), photo_apres_url: null,
-      cree_le: now, mis_a_jour_le: now, service: categorie(d.categorie).service,
-      source: d.token ? "whatsapp" : "web", precision_m: Math.round(d.gps.precision_m),
-      description: d.description ?? null,
-    });
-    return { numero_suivi: numero, statut: "nouveau", doublon: false };
-  }
+export async function creerSignalement(d: NouveauSignalement): Promise<ReportCreated> {
+  if (MOCKS) return creerSignalementSimule(d);
+  // Parcours web : un lien de capture à usage unique est demandé juste avant l'envoi (WhatsApp a déjà le sien).
+  // Un refus (422) ne consomme pas le lien : le citoyen corrige et réessaie.
+  const jeton = d.jeton ?? (await creerLienCapture()).token;
   const f = new FormData();
-  f.append("categorie", d.categorie);
-  f.append("photo", d.photo, "photo.jpg");
-  f.append("photo_prise_le", new Date(d.photo_prise_le).toISOString());
-  f.append("lat_gps", String(d.gps.lat));
-  f.append("lng_gps", String(d.gps.lng));
-  f.append("precision_m", String(Math.round(d.gps.precision_m)));
-  f.append("lat", String(d.point.lat));
-  f.append("lng", String(d.point.lng));
+  f.append("category", d.category);
   if (d.description) f.append("description", d.description);
-  if (d.token) f.append("token", d.token);
-  const r = await client.post<CreationReponse>("/signalements", f, {
+  // Nom de fichier neutre : le vérificateur simulé du back refuse un nom contenant « capture » ou « screenshot »
+  f.append("photo", d.photo, "photo.jpg");
+  f.append("point_lat", String(d.point.lat));
+  f.append("point_lng", String(d.point.lng));
+  f.append("device_lat", String(d.position.lat));
+  f.append("device_lng", String(d.position.lng));
+  f.append("device_accuracy_m", String(d.position.precision_m));
+  f.append("capture_token", jeton);
+  const r = await client.post<ReportCreated>("/reports", f, {
     timeout: 120_000, // une photo sur un petit forfait peut être lente
     onUploadProgress: (ev) => {
       if (ev.total) d.onProgression?.(Math.round((ev.loaded * 100) / ev.total));
     },
   });
-  return r.data;
+  return r.data; // 201 publié (ou en modération), 200 doublon fusionné
 }
 
-// ---------- WhatsApp ----------
-export async function verifierLien(token: string): Promise<LienWhatsApp> {
-  if (MOCKS) {
-    await attendre();
-    if (token === "expire") return { valide: false, raison: "expire" };
-    if (token === "utilise") return { valide: false, raison: "utilise" };
-    return { valide: true, expire_a: new Date(Date.now() + 10 * 60000).toISOString() };
+/** Reproduit les vérifications du back (GPS 50 m, Cotonou, point à 100 m, doublon à 30 m) et ses réponses. */
+async function creerSignalementSimule(d: NouveauSignalement): Promise<ReportCreated> {
+  for (const p of [30, 70, 100]) {
+    await attendre(250);
+    d.onProgression?.(p);
   }
-  return (await client.get<LienWhatsApp>(`/wa/${encodeURIComponent(token)}`)).data;
+  if (MOCK_REFUS) throw erreurSimulee(MOCK_REFUS, MOCK_REFUS === "PHOTO_INVALID" ? 415 : 422);
+  if (d.position.precision_m > PRECISION_MAX_M) {
+    throw erreurSimulee("GPS_INACCURATE", 422, { accuracy_m: d.position.precision_m, max_m: PRECISION_MAX_M });
+  }
+  if (!estDansCotonou(d.position.lat, d.position.lng)) throw erreurSimulee("OUT_OF_ZONE");
+  const distance = distanceM(d.position, d.point);
+  if (distance > DISTANCE_MAX_M) throw erreurSimulee("TOO_FAR", 422, { distance_m: Math.round(distance) });
+
+  const existant = mockStore.signalements.find(
+    (s) => s.category === d.category && s.status !== "resolved" && distanceM(s, d.point) <= 30,
+  );
+  if (existant) {
+    existant.support_count += 1;
+    return {
+      tracking_code: existant.tracking_code, status: existant.status, duplicate: true, support_count: existant.support_count,
+      message: "Ce problème a déjà été signalé tout près. Votre signalement a été ajouté (+1).",
+    };
+  }
+  const code = codeSuivi(mockStore.compteur++);
+  const status: Statut = categorie(d.category).services.length ? "published" : "moderation";
+  const now = new Date().toISOString();
+  mockStore.signalements.unshift({
+    tracking_code: code, category: d.category, category_label: categorie(d.category).libelle, status,
+    description: d.description ?? "", lat: d.point.lat, lng: d.point.lng, photo_url: URL.createObjectURL(d.photo),
+    photo_after_url: null, support_count: 1, created_at: now, updated_at: now, resolved_at: null,
+    history: [{ from_status: "pending", to_status: status, note: "", at: now }],
+    channel: d.jeton ? "whatsapp" : "web", ai_verdict: { matches_category: true, confidence: 0.9 },
+  });
+  return {
+    tracking_code: code, status, duplicate: false, support_count: 1,
+    message: status === "moderation"
+      ? "Signalement reçu. Il sera examiné avant publication. Suivez-le avec ce code."
+      : "Signalement publié. Suivez-le avec ce code.",
+  };
 }
 
-// ---------- Mairie (bonus front : par défaut, la mairie utilise Django admin) ----------
+// ---------- Espace agents (bonus front : par défaut, la mairie utilise Django admin) ----------
 /** Ouvre la session via la route Next /session (même en mode simulé : la protection des routes est réelle). */
-export async function connexion(identifiant: string, motDePasse: string): Promise<Profil> {
-  const r = await client.post<Profil>("/session", { identifiant, motDePasse }, { baseURL: "" });
+export async function connexion(identifiants: LoginRequest): Promise<Profil> {
+  const r = await client.post<Profil>("/session", identifiants, { baseURL: "" });
   notifierSession();
   return r.data;
 }
@@ -172,58 +260,64 @@ export async function deconnexion(): Promise<void> {
   notifierSession();
 }
 
-export interface FiltresMairie {
-  statut?: Statut;
-  service?: string;
+export interface FiltresAgent {
+  status?: Statut;
 }
 
-export async function listerMairie(f: FiltresMairie = {}): Promise<SignalementMairie[]> {
+/** Django ne renvoie que les catégories des services de l'agent (tout pour l'administrateur). */
+export async function listerAgent(f: FiltresAgent = {}): Promise<SignalementAgent[]> {
   if (MOCKS) {
     await attendre();
-    return mockStore.signalements
-      .filter((s) => (!f.statut || s.statut === f.statut) && (!f.service || s.service === f.service))
-      .map((s) => ({ ...s }));
+    return mockStore.signalements.filter((s) => !f.status || s.status === f.status).map((s) => ({ ...s }));
   }
-  return (await client.get<SignalementMairie[]>("/mairie/signalements", { params: f })).data;
+  const r = await client.get<AgentReportList>("/agent/reports", { params: { ...f, limit: 500 } });
+  return r.data.results as SignalementAgent[];
 }
 
-export async function changerStatut({ numero, statut }: { numero: string; statut: Statut }): Promise<SignalementMairie> {
+function trouverSimule(code: string): SignalementAgent {
+  const s = mockStore.signalements.find((x) => x.tracking_code === code);
+  if (!s) throw erreurSimulee("NOT_FOUND", 404);
+  return s;
+}
+
+function passerSimule(s: SignalementAgent, status: Statut, note = "") {
+  const now = new Date().toISOString();
+  s.history = [...s.history, { from_status: s.status, to_status: status, note, at: now }];
+  s.status = status;
+  s.updated_at = now;
+  if (status === "resolved") s.resolved_at = now;
+}
+
+/** Transitions contrôlées par Django : published → in_progress → resolved (sinon INVALID_TRANSITION). */
+export const SUIVANT: Partial<Record<Statut, StatutAgent>> = { published: "in_progress", in_progress: "resolved" };
+
+export async function changerStatut(p: { code: string; status: StatutAgent; note?: string }): Promise<SignalementAgent> {
   if (MOCKS) {
     await attendre();
-    const s = mockStore.signalements.find((x) => x.numero_suivi === numero)!;
-    s.statut = statut;
-    s.mis_a_jour_le = new Date().toISOString();
+    const s = trouverSimule(p.code);
+    if (SUIVANT[s.status] !== p.status) throw erreurSimulee("INVALID_TRANSITION", 409);
+    passerSimule(s, p.status, p.note);
     return { ...s };
   }
-  return (await client.patch<SignalementMairie>(`/mairie/signalements/${numero}`, { statut })).data;
+  const corps = { status: p.status, note: p.note ?? "" };
+  return (await client.patch<SignalementAgent>(`/agent/reports/${encodeURIComponent(p.code)}`, corps)).data;
 }
 
-export async function ajouterPhotoApres({ numero, photo }: { numero: string; photo: Blob }): Promise<SignalementMairie> {
+/** Photo « après » : depuis in_progress (passe en resolved) ou resolved sans photo après. */
+export async function ajouterPhotoApres(p: { code: string; photo: Blob; note?: string }): Promise<SignalementAgent> {
   if (MOCKS) {
     await attendre();
-    const s = mockStore.signalements.find((x) => x.numero_suivi === numero)!;
-    s.photo_apres_url = URL.createObjectURL(photo);
-    s.mis_a_jour_le = new Date().toISOString();
+    const s = trouverSimule(p.code);
+    if (s.status !== "in_progress" && !(s.status === "resolved" && !s.photo_after_url)) {
+      throw erreurSimulee("INVALID_TRANSITION", 409);
+    }
+    if (s.status === "in_progress") passerSimule(s, "resolved", p.note);
+    s.photo_after_url = URL.createObjectURL(p.photo);
     return { ...s };
   }
   const f = new FormData();
-  f.append("photo", photo, "apres.jpg");
-  return (await client.post<SignalementMairie>(`/mairie/signalements/${numero}/photo-apres`, f)).data;
-}
-
-// ---------- Messages de refus (affichés tels quels au citoyen) ----------
-export function messageRefus(code: string, defaut?: string): string {
-  const m: Record<string, string> = {
-    photo_hors_sujet: "La photo ne montre pas le problème choisi. Reprends une photo bien cadrée.",
-    capture_ecran: "Les captures d'écran ne sont pas acceptées. Prends la photo sur place.",
-    photo_ancienne: "La photo doit être prise à l'instant, pas depuis la galerie.",
-    hors_cotonou: "Ta position est en dehors de Cotonou.",
-    trop_loin: "Le point doit être à moins de 100 m de ta position.",
-    precision_insuffisante: "Position GPS pas assez précise. Sors à découvert et réessaie.",
-    lien_expire: "Ce lien a expiré. Écris « Signaler » à nouveau sur WhatsApp.",
-    lien_utilise: "Ce lien a déjà servi. Écris « Signaler » à nouveau sur WhatsApp.",
-    reseau: "Connexion impossible. Vérifie ta connexion internet.",
-    delai: "Le réseau est trop lent. Réessaie dans un instant.",
-  };
-  return m[code] ?? defaut ?? "Une erreur est survenue. Réessaie.";
+  f.append("photo", p.photo, "apres.jpg");
+  if (p.note) f.append("note", p.note);
+  const url = `/agent/reports/${encodeURIComponent(p.code)}/after-photo`;
+  return (await client.post<SignalementAgent>(url, f, { timeout: 120_000 })).data;
 }

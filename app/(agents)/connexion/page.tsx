@@ -18,10 +18,10 @@ function FormulaireConnexion() {
       <h1 className="text-xl font-bold text-marque">Connexion agent</h1>
       <Form
         layout="vertical"
-        onFinish={async (v: { identifiant: string; motDePasse?: string }) => {
+        onFinish={async (v: { username: string; password?: string }) => {
           setChargement(true);
           try {
-            await connexion(v.identifiant, v.motDePasse ?? "");
+            await connexion({ username: v.username, password: v.password ?? "" });
             router.replace(suite);
           } catch (err) {
             message.error(err instanceof ApiError ? err.message : "Connexion impossible");
@@ -31,13 +31,13 @@ function FormulaireConnexion() {
       >
         <Form.Item
           label="Identifiant"
-          name="identifiant"
+          name="username"
           rules={[{ required: true, message: "Identifiant requis" }, { max: 150 }]}
-          extra={MOCKS ? "Mode simulé : n'importe quel identifiant, « elu » pour la vue élu." : undefined}
+          extra={MOCKS ? "Mode simulé : n'importe quel identifiant, sans mot de passe." : undefined}
         >
           <Input size="large" autoComplete="username" />
         </Form.Item>
-        <Form.Item label="Mot de passe" name="motDePasse" rules={MOCKS ? [] : [{ required: true, message: "Mot de passe requis" }]}>
+        <Form.Item label="Mot de passe" name="password" rules={MOCKS ? [] : [{ required: true, message: "Mot de passe requis" }]}>
           <Input.Password size="large" autoComplete="current-password" />
         </Form.Item>
         <Button type="primary" htmlType="submit" size="large" block loading={chargement}>

@@ -1,10 +1,10 @@
 "use client";
-// Parcours citoyen en 4 étapes (brief p.8-9). Utilisé par /signaler ET /s/[token] (WhatsApp).
+// Parcours citoyen en 4 étapes (brief p.8-9). Utilisé par /signaler ET /capture/[token] (WhatsApp).
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { CATEGORIES, categorie } from "@/lib/categories";
-import type { CategorieCode, CreationReponse } from "@/lib/types";
-import { ApiError, messageRefus } from "@/lib/api";
+import { CATEGORIES, categorie, type CategorieCode } from "@/lib/categories";
+import type { ReportCreated } from "@/lib/types";
+import { ApiError, messageErreur } from "@/lib/api";
 import { useCreerSignalement } from "@/hooks/useSignalements";
 import { PRECISION_MAX_M } from "@/lib/geo";
 import { useGeolocalisation } from "@/hooks/useGeolocalisation";
@@ -13,7 +13,10 @@ import { PointPicker } from "@/components/carte";
 
 type Etape = "categorie" | "photo" | "position" | "envoi" | "termine";
 const ETAPES: Etape[] = ["categorie", "photo", "position"];
-const REFUS_PHOTO = ["photo_hors_sujet", "capture_ecran", "photo_ancienne"];
+// Codes du contrat : un refus de photo ramène à l'étape photo, les autres restent sur la carte.
+const REFUS_PHOTO = ["PHOTO_MISMATCH", "PHOTO_SCREENSHOT", "PHOTO_REUSED", "PHOTO_INVALID"];
+const LIEN_MORT = ["TOKEN_EXPIRED", "TOKEN_USED"]; // le lien WhatsApp ne peut plus servir : il faut en redemander un
+const DESCRIPTION_MAX = 280;
 
 export default function SignalementFlow({ token }: { token?: string }) {
   const [etape, setEtape] = useState<Etape>("categorie");
@@ -22,7 +25,7 @@ export default function SignalementFlow({ token }: { token?: string }) {
   const [photo, setPhoto] = useState<PhotoPrise | null>(null);
   const [point, setPoint] = useState<{ lat: number; lng: number } | null>(null);
   const [refus, setRefus] = useState<{ code: string; message: string } | null>(null);
-  const [resultat, setResultat] = useState<CreationReponse | null>(null);
+  const [resultat, setResultat] = useState<ReportCreated | null>(null);
   const debut = useRef(0);
   const [duree, setDuree] = useState(0);
   const gps = useGeolocalisation();
@@ -48,24 +51,38 @@ export default function SignalementFlow({ token }: { token?: string }) {
     setEtape("envoi");
     try {
       const r = await creation.mutateAsync({
-        categorie: cat,
+        category: cat,
         photo: photo.blob,
-        photo_prise_le: photo.prise_le,
-        gps: gps.position,
+        position: gps.position,
         point: pointEffectif,
-        description: description || undefined,
-        token,
+        description: description.trim() || undefined,
+        jeton: token,
         onProgression: setProgression,
       });
       setResultat(r);
       setDuree(Math.round((Date.now() - debut.current) / 1000));
       setEtape("termine");
     } catch (e) {
-      const err = e instanceof ApiError ? e : new ApiError("inconnu", "Erreur inconnue");
-      setRefus({ code: err.code, message: messageRefus(err.code, err.message) });
+      // Le serveur explique le refus en français (message) ; la suite du parcours dépend du code
+      const err = e instanceof ApiError ? e : new ApiError("INCONNU", messageErreur("INCONNU"));
+      setRefus({ code: err.code, message: err.message });
       setEtape(REFUS_PHOTO.includes(err.code) ? "photo" : "position");
       if (REFUS_PHOTO.includes(err.code)) setPhoto(null);
     }
+  }
+
+  if (refus && LIEN_MORT.includes(refus.code)) {
+    return (
+      <div className="m-4 flex flex-col gap-3 rounded-xl bg-erreur-fond p-4 text-erreur">
+        <p className="font-semibold">Lien invalide</p>
+        <p className="text-sm">{refus.message}</p>
+        <p className="text-sm">
+          {token
+            ? "Écris « Signaler » à nouveau sur WhatsApp pour recevoir un nouveau lien."
+            : <Link href="/signaler" className="underline">Recommencer le signalement</Link>}
+        </p>
+      </div>
+    );
   }
 
   if (etape === "termine" && resultat) {
@@ -73,16 +90,22 @@ export default function SignalementFlow({ token }: { token?: string }) {
       <div className="flex flex-col items-center gap-4 p-6 text-center">
         <div className="text-5xl">✅</div>
         <h2 className="text-2xl font-bold text-marque">
-          {resultat.doublon ? "Déjà signalé, ta confirmation compte (+1)" : "Signalement envoyé !"}
+          {resultat.duplicate
+            ? "Déjà signalé, ta confirmation compte (+1)"
+            : resultat.status === "moderation"
+              ? "Signalement reçu"
+              : "Signalement envoyé !"}
         </h2>
+        <p className="text-sm text-encre-douce">{resultat.message}</p>
+        {resultat.duplicate && <p className="text-sm text-violet">👥 Signalé par {resultat.support_count} habitants</p>}
         <p className="text-sm text-encre-douce">Numéro de suivi</p>
         <p className="rounded-xl bg-teinte px-6 py-3 font-mono text-2xl font-bold text-marque">
-          {resultat.numero_suivi}
+          {resultat.tracking_code}
         </p>
         {token && <p className="text-sm text-encre-douce">Tu vas recevoir la confirmation dans WhatsApp.</p>}
         <p className="text-xs text-encre-pale">Fait en {duree} s</p>
         <div className="flex flex-wrap justify-center gap-2">
-          <Link href={`/suivi/${resultat.numero_suivi}`} className="flex min-h-11 items-center rounded-lg bg-violet px-5 text-sur-marque">
+          <Link href={`/suivi/${resultat.tracking_code}`} className="flex min-h-11 items-center rounded-lg bg-violet px-5 text-sur-marque">
             Suivre
           </Link>
           <Link href="/carte" className="flex min-h-11 items-center rounded-lg border border-violet px-5 text-violet">
@@ -140,7 +163,7 @@ export default function SignalementFlow({ token }: { token?: string }) {
                 placeholder="Décris le problème en quelques mots (un lieu, pas une personne)"
                 className="rounded-xl border border-contour bg-surface p-3"
                 rows={3}
-                maxLength={500}
+                maxLength={DESCRIPTION_MAX}
               />
               <button type="button" onClick={() => setEtape("photo")} className="rounded-xl bg-violet py-3 font-semibold text-sur-marque">
                 Continuer

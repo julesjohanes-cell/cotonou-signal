@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 // Toutes les requêtes /api/* sont relayées vers Django.
 // Résultat : une seule URL (HTTPS via le tunnel), pas de CORS à configurer.
-// Les routes /api/mairie/* passent d'abord par proxy.ts (session obligatoire).
+// Les routes /api/v1/agent/* passent d'abord par proxy.ts (session obligatoire).
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 const DEV = process.env.NODE_ENV !== "production";
 
@@ -36,6 +36,8 @@ const nextConfig: NextConfig = {
   // Partout ailleurs (poste de dev, machine de démo), le build les vérifie comme d'habitude.
   typescript: { ignoreBuildErrors: process.env.CI_TYPES_VERIFIES === "1" },
   poweredByHeader: false,
+  // Le relais /api coupe à 30 s par défaut : trop court pour envoyer une photo sur un petit forfait
+  experimental: { proxyTimeout: 120_000 },
   turbopack: {
     rules: {
       "*.css": {
@@ -65,8 +67,8 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Lien WhatsApp à usage unique : jamais transmis à un autre site, jamais mis en cache ni indexé
-        source: "/s/:path*",
+        // Lien de capture WhatsApp à usage unique : jamais transmis à un autre site, jamais mis en cache ni indexé
+        source: "/capture/:path*",
         headers: [
           { key: "Referrer-Policy", value: "no-referrer" },
           { key: "Cache-Control", value: "no-store" },

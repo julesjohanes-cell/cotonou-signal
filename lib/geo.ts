@@ -1,5 +1,7 @@
 // Règles de position du brief : GPS précis, à Cotonou, point à moins de 100 m de la personne.
 // Le serveur revérifie tout : ces contrôles servent seulement à guider l'utilisateur.
+// Seuils alignés sur le back : GPS_MAX_ACCURACY_M=50, MAX_DISTANCE_M=100.
+import type { CarteGeoJSON, SignalementCarte } from "./types";
 
 export const COTONOU_CENTRE: [number, number] = [2.4183, 6.3654]; // [lng, lat] (ordre MapLibre)
 export const COTONOU_ZOOM = 13;
@@ -8,7 +10,7 @@ export const COTONOU_ZOOM = 13;
 export const COTONOU_BBOX = { minLat: 6.33, maxLat: 6.43, minLng: 2.32, maxLng: 2.52 };
 
 export const DISTANCE_MAX_M = 100; // point ajusté ↔ position du citoyen
-export const PRECISION_MAX_M = Number(process.env.NEXT_PUBLIC_PRECISION_MAX_M ?? 100);
+export const PRECISION_MAX_M = Number(process.env.NEXT_PUBLIC_PRECISION_MAX_M || 50);
 export const IGNORER_ZONE = process.env.NEXT_PUBLIC_IGNORER_ZONE === "1"; // pour tester hors de Cotonou
 
 export interface Position {
@@ -47,4 +49,16 @@ export function limiterDistance(
     lat: origine.lat + (point.lat - origine.lat) * ratio,
     lng: origine.lng + (point.lng - origine.lng) * ratio,
   };
+}
+
+/**
+ * GeoJSON (GET /reports) → points de l'interface. GeoJSON impose [longitude, latitude] :
+ * c'est le piège classique (les points partent dans le golfe de Guinée), on ne fait cette conversion qu'ici.
+ */
+export function depuisGeoJSON(fc: CarteGeoJSON): SignalementCarte[] {
+  return (fc.features ?? []).map(({ geometry, properties }) => ({
+    ...properties,
+    lng: geometry.coordinates[0],
+    lat: geometry.coordinates[1],
+  }));
 }

@@ -16,7 +16,9 @@ pnpm dev                   # http://localhost:3000
 ```
 
 Par défaut, l'app tourne sur des **données simulées** (badge MOCKS en haut à droite) : pas besoin d'attendre Django.
-Quand l'API est prête : `NEXT_PUBLIC_MOCKS=0` et `BACKEND_URL=http://localhost:8000` dans `.env.local`.
+Les données simulées ont exactement la forme du contrat d'API. Pour brancher le vrai back (dépôt `cotonou-signal-back`,
+`docker compose up`) : `NEXT_PUBLIC_MOCKS=0` et `BACKEND_URL=http://localhost:8000` dans `.env.local`, puis relancer `pnpm dev`.
+Comptes de démo du back : `agent.assainissement` (ou `agent.dechets`, `agent.techniques`…) / `agent1234`.
 
 ## Mobile d'abord (obligatoire)
 
@@ -63,18 +65,20 @@ Résultats de l'atelier design thinking (personas, parcours testés, priorités)
 
 | Route | Accès | Protection |
 |---|---|---|
-| `/`, `/signaler`, `/s/[token]`, `/carte`, `/suivi/*` | Public | Aucune donnée personnelle affichée ; `/s/*` en `no-referrer`, non indexé |
+| `/`, `/signaler`, `/capture/[token]`, `/carte`, `/suivi/*` | Public | Aucune donnée personnelle affichée ; `/capture/*` en `no-referrer`, non indexé |
 | `/mairie/*` (bonus) | Agents | `proxy.ts` : sans session → `/connexion` |
-| `/api/mairie/*` | Agents | `proxy.ts` : sans session → 401 ; sinon relais vers Django avec `Authorization: Token …` |
+| `/api/v1/agent/*` | Agents | `proxy.ts` : sans session → 401 ; sinon relais vers Django avec `Authorization: Token …` |
 | `/session` | Connexion | Pose le cookie httpOnly `cs_jeton` (SameSite=Strict) ; le jeton n'est jamais lisible en JavaScript |
 | Django admin | Staff | Géré par le back |
 
 En-têtes posés sur toutes les pages (`next.config.ts`) : CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
 `Permissions-Policy` (caméra et position pour notre origine seulement), HSTS. Règles complètes : `AGENTS.md`, section 9.
 
-À vérifier côté back (Django) : permissions DRF par rôle, limitation de débit sur `POST /api/signalements` et `/api/auth/login`,
-validation serveur de tout (GPS, type et taille de photo, métadonnées EXIF retirées, floutage), jeton WhatsApp à usage unique
-de 10 minutes, Django admin réservé au staff, `DEBUG=False` et `SECRET_KEY` hors du dépôt, journal d'audit.
+Déjà en place côté back : jeton par service (un agent ne voit que ses catégories), limitation de débit (60/min sur
+`POST /reports`, 30/min sur `POST /capture-sessions`, 10/min sur la connexion), liens de capture à usage unique de 10 min,
+réponses publiques sans position du citoyen ni verdict IA. Encore à faire côté back (équipes 4 et 5) : contrôles photo, GPS,
+zone, photo déjà vue, modèle de vision et doublons (`reports/checks.py`, `verification/`), EXIF retirées, floutage,
+`DEBUG=False` et `SECRET_KEY` hors du dépôt pour la démo.
 
 ## Tester sur un téléphone (obligatoire pour caméra + GPS)
 
@@ -100,7 +104,7 @@ une seule URL, **pas de CORS** à configurer côté Django.
 | `maplibre-gl` | Carte vectorielle libre (OpenStreetMap), sans clé ni quota |
 | `vitest`, `@testing-library/react`, `jsdom` | Tests unitaires et de composants, rapides |
 | `@playwright/test` | Parcours de bout en bout sur un téléphone émulé, en CI |
-| `swagger-typescript-api` | `pnpm api:generate` : types générés depuis le schéma OpenAPI de Django, dès qu'il est exposé (`/api/schema/`) |
+| `swagger-typescript-api` | `pnpm api:generate` : types TypeScript générés depuis le contrat `contrat/openapi.yaml` (jamais retapés à la main) |
 | `eslint` (config Next) | Règles React et Next, dont celles du compilateur React |
 | pnpm | Installations rapides, lockfile strict, mêmes versions pour tous et en CI |
 
@@ -109,13 +113,14 @@ une seule URL, **pas de CORS** à configurer côté Django.
 | Équipe | Pages | Fichiers |
 |---|---|---|
 | **Capture** | `/signaler` | `app/signaler`, `components/signalement`, `components/CameraCapture.tsx`, `hooks/useGeolocalisation.ts` |
-| **WhatsApp + suivi** | `/s/[token]`, `/suivi`, `/suivi/[numero]` | `app/s`, `app/suivi` |
+| **WhatsApp + suivi** | `/capture/[token]`, `/suivi`, `/suivi/[numero]` | `app/capture`, `app/suivi` |
 | **Carte** | `/carte` | `app/carte` |
 | **Bonus** | `/mairie`, `/connexion` (Ant Design) | `app/(agents)/` — seulement si tous les P0 sont livrés ; sinon la mairie utilise **Django admin** |
-| **Mentor front** | fichiers partagés, CI/CD, sécurité | `proxy.ts`, `lib/`, `hooks/useSignalements.ts`, `components/carte`, `components/ui.tsx`, `components/*Provider.tsx`, `.github/` |
+| **Mentor front** | fichiers partagés, contrat, CI/CD, sécurité | `contrat/`, `proxy.ts`, `lib/`, `hooks/useSignalements.ts`, `components/carte`, `components/ui.tsx`, `components/*Provider.tsx`, `.github/` |
 
-Raccourcis en mode simulé : `/s/expire` et `/s/utilise` (liens invalides), identifiant `elu` sur `/connexion`,
-`NEXT_PUBLIC_MOCK_REFUS=photo_hors_sujet` pour afficher un refus.
+Raccourcis en mode simulé : `/capture/expire`, `/capture/utilise` et `/capture/inconnu` (liens invalides),
+`/capture/lien-valide` (parcours WhatsApp), n'importe quel identifiant sur `/connexion`,
+`NEXT_PUBLIC_MOCK_REFUS=PHOTO_MISMATCH` (ou un autre code du contrat) pour afficher un refus.
 
 ## Organisation GitHub
 
@@ -125,35 +130,44 @@ Raccourcis en mode simulé : `/s/expire` et `/s/utilise` (liens invalides), iden
 
 ## Contrat d'API avec Django
 
-Conventions : JSON en snake_case, **pas de slash final** (`DefaultRouter(trailing_slash=False)`),
-erreurs métier en **422** au format `{ "code": "...", "message": "..." }`. Types exacts dans `lib/types.ts`
-(remplacés par les types générés via `pnpm api:generate` dès que le schéma OpenAPI est exposé).
+Source de vérité : **`contrat/openapi.yaml`**, copie de `docs/openapi.yaml` du dépôt back (avec `contrat/api-contract.md`,
+la version lisible). Gelé à 20h20 : ensuite, on ajoute (champ facultatif, endpoint), on ne renomme ni ne supprime rien.
+
+- Types TypeScript générés dans `lib/generated/` (`pnpm api:generate`), ré-exportés ou dérivés dans `lib/types.ts`. Jamais retapés.
+- Le back a changé le contrat ? `pnpm api:sync` (recopie depuis `../cotonou-signal-back`, ou `BACK_DIR=…`), puis adapter le front
+  dans la même PR. La CI vérifie que `lib/generated/` correspond bien à `contrat/openapi.yaml` (`pnpm api:check`).
+- Conventions : préfixe `/api/v1`, snake_case, dates ISO, barre oblique finale facultative.
+- **GeoJSON = `[longitude, latitude]`** : la conversion se fait uniquement dans `depuisGeoJSON` (`lib/geo.ts`).
+- Toute erreur : `{"error": {"code", "message", "details"}}`. L'écran affiche `message` (en français), la logique se base sur `code`.
+
+| Méthode | Route (`/api/v1/…`) | Utilisé par | Corps / réponse |
+|---|---|---|---|
+| POST | `/capture-sessions` | `/signaler` (juste avant l'envoi) | → 201 `{ token, expires_at, capture_url }` |
+| GET | `/capture-sessions/{token}` | `/capture/[token]` | → 200 `{ valid, expires_at }`, ou 404 / 409 `TOKEN_USED` / 410 `TOKEN_EXPIRED` |
+| POST | `/reports` | parcours de signalement | multipart `category`, `description?`, `photo`, `point_lat`, `point_lng`, `device_lat`, `device_lng`, `device_accuracy_m`, `capture_token` → 201 `{ tracking_code, status, duplicate, support_count, message }`, 200 si doublon fusionné, 422 si refus |
+| GET | `/reports` | `/carte` | GeoJSON des signalements publics (aucune donnée perso) |
+| GET | `/reports/{tracking_code}` | `/suivi/[numero]` | détail + `history[]` (la note de l'agent est visible, jamais son nom) |
+| GET | `/categories` | (liste aussi dans `lib/categories.ts`) | `[{ slug, label, services[], needs_moderation }]` |
+
+Bonus (espace mairie en front ; le jeton reste dans le cookie httpOnly, `proxy.ts` ajoute `Authorization: Token …`) :
 
 | Méthode | Route | Corps / réponse |
 |---|---|---|
-| POST | `/api/signalements` | multipart : `categorie`, `photo`, `photo_prise_le`, `lat_gps`, `lng_gps`, `precision_m`, `lat`, `lng`, `description?`, `token?` → 201 `{ numero_suivi, statut, doublon }` ou 422 |
-| GET | `/api/signalements/public` | liste de `SignalementPublic` (point du problème, photo floutée, **aucune donnée perso**) |
-| GET | `/api/signalements/{numero}` | `SignalementPublic` |
-| GET | `/api/wa/{token}` | `{ valide, raison?: "expire" \| "utilise" \| "inconnu", expire_a? }` |
+| POST | `/session` (route Next) → `/api/v1/auth/login` | `{ username, password }` → profil `{ username, services }` |
+| GET | `/api/v1/agent/reports?status=` | `{ count, results[] }` : signalements des services de l'agent, avec `channel` et `ai_verdict` |
+| PATCH | `/api/v1/agent/reports/{code}` | `{ status: "in_progress" \| "resolved", note }` ; transitions `published → in_progress → resolved` |
+| POST | `/api/v1/agent/reports/{code}/after-photo` | multipart `photo`, `note` → passe en `resolved` |
 
-Bonus (espace mairie en front, token DRF `Authorization: Token <clé>`) :
-
-| Méthode | Route | Corps / réponse |
-|---|---|---|
-| POST | `/api/auth/login` | `{ username, password }` → `{ token, nom, role: "agent" \| "elu", service }` |
-| GET | `/api/mairie/signalements?statut=&service=` | liste de `SignalementMairie` |
-| PATCH | `/api/mairie/signalements/{numero}` | `{ statut }` → `SignalementMairie` |
-| POST | `/api/mairie/signalements/{numero}/photo-apres` | multipart `photo` → `SignalementMairie` |
-
-Codes de refus attendus : `photo_hors_sujet`, `capture_ecran`, `photo_ancienne`, `hors_cotonou`, `trop_loin`,
-`precision_insuffisante`, `lien_expire`, `lien_utilise`. Statuts : `nouveau`, `pris_en_charge`, `resolu`, `rejete`.
-Catégories : voir `lib/categories.ts`.
+Codes de refus (422) : `OUT_OF_ZONE`, `TOO_FAR`, `GPS_INACCURATE`, `PHOTO_REUSED`, `PHOTO_MISMATCH`, `PHOTO_SCREENSHOT`
+(et `PHOTO_INVALID` en 415). Un refus ne consomme pas le lien de capture : le citoyen corrige et réessaie.
+Statuts : `pending`, `rejected`, `moderation`, `published`, `in_progress`, `resolved` (seuls les trois derniers sont publics).
+Seuils du back : GPS 50 m, point à 100 m, photo de 8 Mo maximum (JPEG, PNG ou WebP), description de 280 caractères.
 
 ## Checklist démo (critères du brief)
 
 - [ ] Signalement complet en moins d'une minute (le temps s'affiche à la fin ; vérifié par le test e2e)
 - [ ] Photo hors sujet refusée en direct (message rouge, retour à l'étape photo)
-- [ ] Parcours WhatsApp : lien unique `/s/{token}` → même page de capture → confirmation
+- [ ] Parcours WhatsApp : lien unique `/capture/{token}` → même page de capture → confirmation
 - [ ] La mairie voit le point, change son statut, ajoute la photo « après » (Django admin, ou `/mairie` en bonus)
 - [ ] Aucune donnée personnelle sur `/carte` et `/suivi`
 - [ ] Testé sur un vrai Android **et** un vrai iPhone, autorisations caméra/GPS déjà accordées
