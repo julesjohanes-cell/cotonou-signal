@@ -26,11 +26,29 @@ export function lireSession(): Session | null {
     return null;
   }
 }
+/** Chaîne brute (stable entre deux rendus) pour useSyncExternalStore. */
+export function lireSessionBrute(): string | null {
+  try {
+    return localStorage.getItem(CLE_SESSION);
+  } catch {
+    return null;
+  }
+}
+const EVT_SESSION = "cs-session";
+export function abonnerSession(rappel: () => void): () => void {
+  window.addEventListener(EVT_SESSION, rappel);
+  window.addEventListener("storage", rappel);
+  return () => {
+    window.removeEventListener(EVT_SESSION, rappel);
+    window.removeEventListener("storage", rappel);
+  };
+}
 function ecrireSession(s: Session | null) {
   try {
     if (s) localStorage.setItem(CLE_SESSION, JSON.stringify(s));
     else localStorage.removeItem(CLE_SESSION);
   } catch {}
+  window.dispatchEvent(new Event(EVT_SESSION));
 }
 export const deconnexion = () => ecrireSession(null);
 

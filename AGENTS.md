@@ -8,16 +8,93 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
-## Cotonou Signale : règles du projet (humains et IA)
+# Cotonou Signale — guide des agents (et des humains)
 
-- Interface en **français**, pensée **mobile d'abord** (écran 390 px).
-- **Ant Design** pour l'espace mairie (`app/mairie` : Table, Form, Select, Tag, Statistic, `App.useApp().message`). **Tailwind** pour le parcours citoyen et la mise en page. Pas d'antd sur `/signaler` (page légère). Pas de CSS maison : couleurs du brief uniquement (thème dans `components/AntdProvider.tsx`, jetons dans `app/globals.css`).
-- **Aucun `fetch` dans les composants** : tout appel passe par `lib/api.ts`. Nouveau besoin d'API → ajouter une fonction dans `lib/api.ts` (version mock + version réelle) et le type dans `lib/types.ts`.
-- `lib/types.ts` = contrat avec le back Django. Ne pas le modifier sans prévenir l'équipe back.
-- Cartes : toujours importer depuis `@/components/carte` (`MapView`, `PointPicker`), jamais `maplibre-gl` directement dans une page.
-- Catégories, services, statuts : uniquement depuis `lib/categories.ts`.
-- **Vie privée** : aucune page publique (`/carte`, `/suivi`) n'affiche le téléphone, le nom ou la position GPS du citoyen. Seul le point du problème est public.
+Ce fichier est la **source unique** des règles du front. `CLAUDE.md` y renvoie ; on n'écrit pas les règles ailleurs
+(ni dans un prompt, ni en double dans un autre fichier). Une règle manque ? On l'ajoute ici, dans une PR.
+
+## 1. Avant de coder : lire, dans cet ordre
+
+1. Ce fichier.
+2. `docs/design-thinking.md` : personas, questions « Comment pourrions-nous », parcours papier testés, priorités.
+3. La maquette validée de l'écran (Claude Design). Pas de maquette validée = on ne code pas l'écran.
+4. `README.md` (contrat d'API) et `lib/types.ts`.
+5. Les composants et modules existants (`components/`, `lib/`, `hooks/`) : **chercher une brique existante avant d'en créer une**.
+
+Annoncer avant de commencer : l'écran concerné, le ticket (issue), les états et tailles d'écran qui serviront à la vérification.
+Ne jamais inventer une fonctionnalité hors backlog, ni un chiffre, un témoignage, un badge ou une donnée « pour faire joli ».
+
+## 2. Architecture
+
+- `app/` compose les pages ; pas de logique réutilisable dans une page.
+- Un composant propre à un écran reste à côté de sa page ou dans `components/<domaine>/`. Il ne devient partagé que s'il sert plusieurs écrans.
+- **Aucun `fetch` dans les composants** : tout appel passe par `lib/api.ts` (version simulée + version réelle).
+- `lib/types.ts` = contrat avec Django. Les types d'API ne sont jamais retapés ailleurs ; on les dérive (`Pick`, `Omit`).
+  Modifier le contrat = prévenir l'équipe back et mettre à jour le README dans la même PR.
+- Catégories, services, statuts : uniquement depuis `lib/categories.ts`. Cartes : uniquement via `@/components/carte`.
+- Pas de fichiers fourre-tout `helpers`, `utils` ni `*_partN` : nommer chaque module par sa responsabilité (`geo.ts`, `image.ts`…).
+- **400 lignes maximum par fichier** : au-delà, découper par responsabilité.
+- `"use client"` sur la plus petite frontière interactive. Paramètres de route via `useParams()`.
+- Fichiers partagés (`lib/`, `components/carte`, `components/ui.tsx`, `components/AntdProvider.tsx`) : modifiés seulement avec l'accord du mentor front.
+
+## 3. Interface
+
+- Interface en **français**, pensée **mobile d'abord** (écran de 390 px).
+- **Ant Design** pour l'espace mairie (`app/mairie`) ; **Tailwind** pour le parcours citoyen et la mise en page. Pas d'antd sur `/signaler` (page légère, petits forfaits).
+- Un seul thème : `components/AntdProvider.tsx`. Pas de `theme={{…}}` dans une page, pas de couleur brute hors des couleurs du brief,
+  pas de `!important`, pas de sélecteur `.ant-*`, pas de style global ponctuel.
+- Boutons antd choisis par intention : `primary` = action principale, défaut = secondaire, `text` = tertiaire, `link` seulement avec un vrai `href`.
+  Aucune classe de couleur, bordure ou rayon posée sur un `Button`.
+- Formulaires : composants antd dans `Form.Item`, pas d'inputs natifs dans `/mairie`.
+- Retours à l'utilisateur : `App.useApp().message` pour un retour éphémère ; `Modal.confirm` avant une action destructive ;
+  une modale seulement pour une décision qui bloque vraiment la suite.
+- Chaque écran gère ses états : chargement, vide, erreur, contenu long. Les refus du serveur s'affichent tels quels (`messageRefus`).
+
+## 4. Tests : obligatoires après chaque fonctionnalité
+
+- Chaque fonctionnalité arrive **avec ses tests** dans `tests/unit/*.test.ts` (Vitest) : règles métier (GPS, 100 m, refus, doublons),
+  logique de `lib/`, transformation des données, messages d'erreur.
+- Un bug corrigé = un test qui l'aurait attrapé.
+- Ne jamais supprimer, affaiblir ou contourner un test ou un contrôle pour « faire passer ». Un écart volontaire est expliqué dans le code et couvert par un test.
+- Avant chaque PR : **`npm run verify`** (lint + types + tests + build) doit être vert.
+
+## 5. Vérifier dans le navigateur
+
+- Ouvrir l'écran réel sur un téléphone, via le tunnel HTTPS (caméra et GPS l'exigent).
+- Tester : clic, chargement, erreur, état vide ; `/mairie` aussi sur ordinateur.
+- Console du navigateur sans erreur. Les liens modifiés ont été ouverts.
+
+## 6. Documentation
+
+- Mettre à jour `README.md`, ce fichier ou `docs/` **dans la même PR** quand une commande, une règle, le contrat d'API ou une décision change.
+- Les résultats de l'atelier vivent dans `docs/design-thinking.md` ; une décision qui les modifie y est notée avec sa date.
+- Commentaires de code : expliquer le *pourquoi* d'une règle métier, pas répéter le code.
+
+## 7. Git
+
+- Vérifier la branche (`git branch --show-current`) : jamais de travail direct sur `main`.
+- Classer chaque nouveau fichier avant `git add` (source, secret, sortie générée) : **jamais `git add -A` ni `git add .`**.
+- Jamais de `.env.local` ni de secret dans un commit ; `.env.example` reste sans secret.
+- Captures, rapports et fichiers temporaires hors du dépôt.
+- Une PR = un ticket, avec le modèle `.github/pull_request_template.md` rempli.
+
+## 8. Vie privée
+
+- Aucune page publique (`/carte`, `/suivi`) n'affiche le téléphone, le nom ou la position GPS du citoyen : seul le point du problème est public.
 - On signale des **lieux, jamais des personnes**.
-- Chaque équipe reste dans ses dossiers (voir README) pour éviter les conflits Git. Les fichiers partagés (`lib/`, `components/carte`, `components/ui.tsx`) ne se modifient qu'avec l'accord du mentor front.
-- Composants interactifs : `"use client"` en tête de fichier. Paramètres de route via `useParams()`.
-- Avant de pousser : `npm run build` doit passer.
+
+## 9. Compte rendu de l'agent (obligatoire en fin de tâche)
+
+Une tâche n'est pas terminée sans ce compte rendu (à recopier dans la PR) :
+
+```md
+- Documents lus :
+- Composants réutilisés :
+- Tests ajoutés ou modifiés :
+- Écrans et tailles d'écran testés :
+- Commandes exécutées (et résultat) :
+- Écarts volontaires et justification :
+```
+
+Avant de finaliser, relire son propre travail en mode revue : appels réseau hors `lib/api.ts`, types d'API retapés,
+couleurs brutes, thème inline, fichiers trop longs, tests manquants.

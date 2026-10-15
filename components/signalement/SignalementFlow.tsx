@@ -22,7 +22,7 @@ export default function SignalementFlow({ token }: { token?: string }) {
   const [point, setPoint] = useState<{ lat: number; lng: number } | null>(null);
   const [refus, setRefus] = useState<{ code: string; message: string } | null>(null);
   const [resultat, setResultat] = useState<CreationReponse | null>(null);
-  const debut = useRef(Date.now());
+  const debut = useRef(0);
   const [duree, setDuree] = useState(0);
   const gps = useGeolocalisation();
 
@@ -32,11 +32,14 @@ export default function SignalementFlow({ token }: { token?: string }) {
   }, [etape, gps]);
 
   useEffect(() => {
-    if (gps.position && !point) setPoint({ lat: gps.position.lat, lng: gps.position.lng });
-  }, [gps.position, point]);
+    debut.current = Date.now();
+  }, []);
+
+  // Tant que le citoyen n'a pas déplacé le marqueur, le point suit sa position GPS
+  const pointEffectif = point ?? (gps.position ? { lat: gps.position.lat, lng: gps.position.lng } : null);
 
   async function publier() {
-    if (!cat || !photo || !gps.position || !point) return;
+    if (!cat || !photo || !gps.position || !pointEffectif) return;
     setRefus(null);
     setEtape("envoi");
     try {
@@ -45,7 +48,7 @@ export default function SignalementFlow({ token }: { token?: string }) {
         photo: photo.blob,
         photo_prise_le: photo.prise_le,
         gps: gps.position,
-        point,
+        point: pointEffectif,
         description: description || undefined,
         token,
       });
@@ -180,10 +183,10 @@ export default function SignalementFlow({ token }: { token?: string }) {
         <>
           <h2 className="text-xl font-bold text-violet-950">Place le point exact</h2>
           <EtatGps etat={gps.etat} precision={gps.position?.precision_m} onRelancer={gps.demarrer} />
-          {gps.position && point && (gps.etat === "ok" || gps.etat === "recherche") && (
+          {gps.position && pointEffectif && (gps.etat === "ok" || gps.etat === "recherche") && (
             <>
               <p className="text-sm text-gray-600">Déplace le marqueur sur le problème (100 m max autour de toi).</p>
-              <PointPicker gps={gps.position} point={point} onChange={setPoint} />
+              <PointPicker gps={gps.position} point={pointEffectif} onChange={setPoint} />
               <button
                 type="button"
                 onClick={publier}

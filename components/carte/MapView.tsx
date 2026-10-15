@@ -47,7 +47,9 @@ export default function MapView({ marqueurs, selection, onSelection, ajusterVue 
   const carte = useRef<MlMap | null>(null);
   const markers = useRef<Marker[]>([]);
   const onSel = useRef(onSelection);
-  onSel.current = onSelection;
+  useEffect(() => {
+    onSel.current = onSelection;
+  });
 
   useEffect(() => {
     configurerMapLibre();

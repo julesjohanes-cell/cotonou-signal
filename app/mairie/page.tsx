@@ -1,38 +1,34 @@
 "use client";
 // ÉQUIPE MAIRIE — espace agent / élu (Ant Design) : voir les points, changer le statut, ajouter la photo "après"
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { App, Button, Card, Form, Input, Segmented, Select, Statistic, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Entete, LibelleCategorie, dateCourte } from "@/components/ui";
 import { MapView, type Marqueur } from "@/components/carte";
 import CameraCapture from "@/components/CameraCapture";
-import { ajouterPhotoApres, changerStatut, connexion, deconnexion, lireSession, listerMairie, ApiError } from "@/lib/api";
+import { abonnerSession, ajouterPhotoApres, changerStatut, connexion, deconnexion, lireSessionBrute, listerMairie, ApiError } from "@/lib/api";
 import { SERVICES, STATUTS, categorie } from "@/lib/categories";
 import type { Session, SignalementMairie, Statut } from "@/lib/types";
 
 export default function Mairie() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [pret, setPret] = useState(false);
+  // undefined côté serveur, puis la session stockée dans le navigateur
+  const brut = useSyncExternalStore(abonnerSession, lireSessionBrute, () => undefined);
+  const session = useMemo<Session | null>(() => (brut ? (JSON.parse(brut) as Session) : null), [brut]);
 
-  useEffect(() => {
-    setSession(lireSession());
-    setPret(true);
-  }, []);
-
-  if (!pret) return null;
+  if (brut === undefined) return null;
   return (
     <>
       <Entete titre="Espace mairie" />
       {session ? (
-        <TableauDeBord session={session} onDeconnexion={() => { deconnexion(); setSession(null); }} />
+        <TableauDeBord session={session} onDeconnexion={deconnexion} />
       ) : (
-        <Connexion onConnecte={setSession} />
+        <Connexion />
       )}
     </>
   );
 }
 
-function Connexion({ onConnecte }: { onConnecte: (s: Session) => void }) {
+function Connexion() {
   const { message } = App.useApp();
   const [chargement, setChargement] = useState(false);
   return (
@@ -43,7 +39,7 @@ function Connexion({ onConnecte }: { onConnecte: (s: Session) => void }) {
         onFinish={async (v: { identifiant: string; motDePasse: string }) => {
           setChargement(true);
           try {
-            onConnecte(await connexion(v.identifiant, v.motDePasse ?? ""));
+            await connexion(v.identifiant, v.motDePasse ?? "");
           } catch (err) {
             message.error(err instanceof ApiError ? err.message : "Connexion impossible");
           } finally {

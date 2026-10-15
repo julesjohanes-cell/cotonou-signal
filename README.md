@@ -13,6 +13,17 @@ npm run dev            # http://localhost:3000
 Par défaut, l'app tourne sur des **données simulées** (badge MOCKS en haut à droite) : pas besoin d'attendre Django.
 Quand l'API est prête : `NEXT_PUBLIC_MOCKS=0` et `BACKEND_URL=http://localhost:8000` dans `.env.local`.
 
+## Tests et vérification
+
+```bash
+npm test         # tests unitaires (Vitest), dans tests/unit
+npm run verify   # lint + types + tests + build : obligatoire avant chaque PR
+```
+
+Chaque fonctionnalité arrive avec ses tests. Règles complètes pour les humains et les agents IA : `AGENTS.md`.
+Résultats de l'atelier design thinking (personas, parcours testés, priorités) : `docs/design-thinking.md`.
+Modèle de PR (vérifications + compte rendu de l'agent) : `.github/pull_request_template.md`.
+
 ## Tester sur un téléphone (obligatoire pour caméra + GPS)
 
 Le navigateur refuse la caméra et le GPS en `http://192.168…`. Il faut du **HTTPS** :

@@ -27,7 +27,9 @@ function cercle(lat: number, lng: number, rayonM: number) {
 export default function PointPicker({ gps, point, onChange, className }: Props) {
   const conteneur = useRef<HTMLDivElement>(null);
   const onCh = useRef(onChange);
-  onCh.current = onChange;
+  useEffect(() => {
+    onCh.current = onChange;
+  });
 
   useEffect(() => {
     configurerMapLibre();
