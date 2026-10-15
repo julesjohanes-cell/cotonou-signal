@@ -1,4 +1,6 @@
-// Client API unique. Les composants n'appellent JAMAIS fetch directement : tout passe par ici.
+// Couche réseau unique (axios). Les écrans n'appellent jamais ce fichier directement :
+// ils passent par les hooks TanStack Query de hooks/useSignalements.ts.
+import axios, { type AxiosError } from "axios";
 import type {
   CategorieCode, CreationReponse, ErreurApi, LienWhatsApp, Session,
   SignalementMairie, SignalementPublic, Statut,
@@ -18,13 +20,11 @@ export class ApiError extends Error {
 
 // ---------- Session mairie (token DRF) ----------
 const CLE_SESSION = "cs_session";
+const EVT_SESSION = "cs-session";
+
 export function lireSession(): Session | null {
-  try {
-    const s = localStorage.getItem(CLE_SESSION);
-    return s ? (JSON.parse(s) as Session) : null;
-  } catch {
-    return null;
-  }
+  const brut = lireSessionBrute();
+  return brut ? (JSON.parse(brut) as Session) : null;
 }
 /** Chaîne brute (stable entre deux rendus) pour useSyncExternalStore. */
 export function lireSessionBrute(): string | null {
@@ -34,7 +34,6 @@ export function lireSessionBrute(): string | null {
     return null;
   }
 }
-const EVT_SESSION = "cs-session";
 export function abonnerSession(rappel: () => void): () => void {
   window.addEventListener(EVT_SESSION, rappel);
   window.addEventListener("storage", rappel);
@@ -48,36 +47,35 @@ function ecrireSession(s: Session | null) {
     if (s) localStorage.setItem(CLE_SESSION, JSON.stringify(s));
     else localStorage.removeItem(CLE_SESSION);
   } catch {}
-  window.dispatchEvent(new Event(EVT_SESSION));
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT_SESSION));
 }
 export const deconnexion = () => ecrireSession(null);
 
-// ---------- fetch ----------
-async function appel<T>(chemin: string, init: RequestInit = {}, auth = false): Promise<T> {
-  const headers = new Headers(init.headers);
-  headers.set("Accept", "application/json");
-  if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
-  if (auth) {
-    const s = lireSession();
-    if (s) headers.set("Authorization", `Token ${s.token}`);
-  }
-  let rep: Response;
-  try {
-    rep = await fetch(`/api${chemin}`, { ...init, headers });
-  } catch {
-    throw new ApiError("reseau", "Connexion impossible. Vérifie ta connexion internet.");
-  }
-  if (!rep.ok) {
-    let err: Partial<ErreurApi> = {};
-    try {
-      err = await rep.json();
-    } catch {}
-    if (rep.status === 401) ecrireSession(null);
-    throw new ApiError(err.code ?? `http_${rep.status}`, err.message ?? `Erreur serveur (${rep.status})`, rep.status);
-  }
-  if (rep.status === 204) return undefined as T;
-  return rep.json() as Promise<T>;
-}
+// ---------- Client axios ----------
+// Même origine : Next relaie /api vers Django (next.config.ts), donc pas de CORS.
+const client = axios.create({ baseURL: "/api", timeout: 30_000, headers: { Accept: "application/json" } });
+
+client.interceptors.request.use((config) => {
+  const s = typeof window !== "undefined" ? lireSession() : null;
+  if (s) config.headers.set("Authorization", `Token ${s.token}`);
+  return config;
+});
+
+// Toute erreur devient une ApiError { code, message, status } : les écrans n'ont qu'un format à gérer
+client.interceptors.response.use(
+  (r) => r,
+  (e: AxiosError<Partial<ErreurApi>>) => {
+    if (!e.response) {
+      const code = e.code === "ECONNABORTED" ? "delai" : "reseau";
+      return Promise.reject(new ApiError(code, messageRefus(code)));
+    }
+    if (e.response.status === 401) ecrireSession(null);
+    const d = e.response.data ?? {};
+    return Promise.reject(
+      new ApiError(d.code ?? `http_${e.response.status}`, d.message ?? `Erreur serveur (${e.response.status})`, e.response.status),
+    );
+  },
+);
 
 const versPublic = (s: SignalementMairie): SignalementPublic => ({
   numero_suivi: s.numero_suivi, categorie: s.categorie, statut: s.statut, lat: s.lat, lng: s.lng,
@@ -91,7 +89,7 @@ export async function listerPublic(): Promise<SignalementPublic[]> {
     await attendre();
     return mockStore.signalements.filter((s) => s.statut !== "rejete").map(versPublic);
   }
-  return appel("/signalements/public");
+  return (await client.get<SignalementPublic[]>("/signalements/public")).data;
 }
 
 export async function suivre(numero: string): Promise<SignalementPublic> {
@@ -101,7 +99,7 @@ export async function suivre(numero: string): Promise<SignalementPublic> {
     if (!s) throw new ApiError("introuvable", "Aucun signalement avec ce numéro.", 404);
     return versPublic(s);
   }
-  return appel(`/signalements/${encodeURIComponent(numero.trim())}`);
+  return (await client.get<SignalementPublic>(`/signalements/${encodeURIComponent(numero.trim())}`)).data;
 }
 
 export interface NouveauSignalement {
@@ -112,11 +110,15 @@ export interface NouveauSignalement {
   point: { lat: number; lng: number }; // point du problème, ajusté sur la carte
   description?: string;
   token?: string; // parcours WhatsApp
+  onProgression?: (pourcentage: number) => void; // envoi de la photo (réseau lent)
 }
 
 export async function creerSignalement(d: NouveauSignalement): Promise<CreationReponse> {
   if (MOCKS) {
-    await attendre(900);
+    for (const p of [30, 70, 100]) {
+      await attendre(250);
+      d.onProgression?.(p);
+    }
     if (MOCK_REFUS) throw new ApiError(MOCK_REFUS, messageRefus(MOCK_REFUS), 422);
     if (!estDansCotonou(d.gps.lat, d.gps.lng)) throw new ApiError("hors_cotonou", messageRefus("hors_cotonou"), 422);
     if (distanceM(d.gps, d.point) > 100) throw new ApiError("trop_loin", messageRefus("trop_loin"), 422);
@@ -149,7 +151,13 @@ export async function creerSignalement(d: NouveauSignalement): Promise<CreationR
   f.append("lng", String(d.point.lng));
   if (d.description) f.append("description", d.description);
   if (d.token) f.append("token", d.token);
-  return appel("/signalements", { method: "POST", body: f });
+  const r = await client.post<CreationReponse>("/signalements", f, {
+    timeout: 120_000, // une photo sur un petit forfait peut être lente
+    onUploadProgress: (ev) => {
+      if (ev.total) d.onProgression?.(Math.round((ev.loaded * 100) / ev.total));
+    },
+  });
+  return r.data;
 }
 
 // ---------- WhatsApp ----------
@@ -160,39 +168,38 @@ export async function verifierLien(token: string): Promise<LienWhatsApp> {
     if (token === "utilise") return { valide: false, raison: "utilise" };
     return { valide: true, expire_a: new Date(Date.now() + 10 * 60000).toISOString() };
   }
-  return appel(`/wa/${encodeURIComponent(token)}`);
+  return (await client.get<LienWhatsApp>(`/wa/${encodeURIComponent(token)}`)).data;
 }
 
-// ---------- Mairie ----------
+// ---------- Mairie (bonus front : par défaut, la mairie utilise Django admin) ----------
 export async function connexion(identifiant: string, motDePasse: string): Promise<Session> {
   let s: Session;
   if (MOCKS) {
     await attendre();
     s = { token: "mock", nom: identifiant || "agent", role: identifiant === "elu" ? "elu" : "agent", service: null };
   } else {
-    s = await appel<Session>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ username: identifiant, password: motDePasse }),
-    });
+    s = (await client.post<Session>("/auth/login", { username: identifiant, password: motDePasse })).data;
   }
   ecrireSession(s);
   return s;
 }
 
-export async function listerMairie(f: { statut?: Statut; service?: string } = {}): Promise<SignalementMairie[]> {
-  if (MOCKS) {
-    await attendre();
-    return mockStore.signalements.filter(
-      (s) => (!f.statut || s.statut === f.statut) && (!f.service || s.service === f.service),
-    );
-  }
-  const q = new URLSearchParams();
-  if (f.statut) q.set("statut", f.statut);
-  if (f.service) q.set("service", f.service);
-  return appel(`/mairie/signalements${q.size ? `?${q}` : ""}`, {}, true);
+export interface FiltresMairie {
+  statut?: Statut;
+  service?: string;
 }
 
-export async function changerStatut(numero: string, statut: Statut): Promise<SignalementMairie> {
+export async function listerMairie(f: FiltresMairie = {}): Promise<SignalementMairie[]> {
+  if (MOCKS) {
+    await attendre();
+    return mockStore.signalements
+      .filter((s) => (!f.statut || s.statut === f.statut) && (!f.service || s.service === f.service))
+      .map((s) => ({ ...s }));
+  }
+  return (await client.get<SignalementMairie[]>("/mairie/signalements", { params: f })).data;
+}
+
+export async function changerStatut({ numero, statut }: { numero: string; statut: Statut }): Promise<SignalementMairie> {
   if (MOCKS) {
     await attendre();
     const s = mockStore.signalements.find((x) => x.numero_suivi === numero)!;
@@ -200,10 +207,10 @@ export async function changerStatut(numero: string, statut: Statut): Promise<Sig
     s.mis_a_jour_le = new Date().toISOString();
     return { ...s };
   }
-  return appel(`/mairie/signalements/${numero}`, { method: "PATCH", body: JSON.stringify({ statut }) }, true);
+  return (await client.patch<SignalementMairie>(`/mairie/signalements/${numero}`, { statut })).data;
 }
 
-export async function ajouterPhotoApres(numero: string, photo: Blob): Promise<SignalementMairie> {
+export async function ajouterPhotoApres({ numero, photo }: { numero: string; photo: Blob }): Promise<SignalementMairie> {
   if (MOCKS) {
     await attendre();
     const s = mockStore.signalements.find((x) => x.numero_suivi === numero)!;
@@ -213,7 +220,7 @@ export async function ajouterPhotoApres(numero: string, photo: Blob): Promise<Si
   }
   const f = new FormData();
   f.append("photo", photo, "apres.jpg");
-  return appel(`/mairie/signalements/${numero}/photo-apres`, { method: "POST", body: f }, true);
+  return (await client.post<SignalementMairie>(`/mairie/signalements/${numero}/photo-apres`, f)).data;
 }
 
 // ---------- Messages de refus (affichés tels quels au citoyen) ----------
@@ -228,6 +235,7 @@ export function messageRefus(code: string, defaut?: string): string {
     lien_expire: "Ce lien a expiré. Écris « Signaler » à nouveau sur WhatsApp.",
     lien_utilise: "Ce lien a déjà servi. Écris « Signaler » à nouveau sur WhatsApp.",
     reseau: "Connexion impossible. Vérifie ta connexion internet.",
+    delai: "Le réseau est trop lent. Réessaie dans un instant.",
   };
   return m[code] ?? defaut ?? "Une erreur est survenue. Réessaie.";
 }

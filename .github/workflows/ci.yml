@@ -1,0 +1,65 @@
+# CI/CD du front Cotonou Signale
+# - Chaque PR : contrôle « Qualité » (lint, types, tests, build, parcours e2e). Requis pour fusionner.
+# - Chaque fusion sur main : même contrôle, puis la machine de démo se met à jour (scripts/demo-continue.sh).
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  qualite:
+    name: Qualité
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_MOCKS: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Installer (lockfile figé)
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Types
+        run: pnpm typecheck
+
+      - name: Tests unitaires
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Navigateur Playwright
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Parcours de bout en bout
+        run: pnpm test:e2e
+
+      - name: Rapport e2e en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-playwright
+          path: playwright-report/
+          retention-days: 3

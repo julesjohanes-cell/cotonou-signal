@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { CATEGORIES, categorie } from "@/lib/categories";
 import type { CategorieCode, CreationReponse } from "@/lib/types";
-import { ApiError, creerSignalement, messageRefus } from "@/lib/api";
+import { ApiError, messageRefus } from "@/lib/api";
+import { useCreerSignalement } from "@/hooks/useSignalements";
 import { PRECISION_MAX_M } from "@/lib/geo";
 import { useGeolocalisation } from "@/hooks/useGeolocalisation";
 import CameraCapture, { type PhotoPrise } from "@/components/CameraCapture";
@@ -25,6 +26,8 @@ export default function SignalementFlow({ token }: { token?: string }) {
   const debut = useRef(0);
   const [duree, setDuree] = useState(0);
   const gps = useGeolocalisation();
+  const creation = useCreerSignalement();
+  const [progression, setProgression] = useState(0);
 
   // Lance le GPS dès l'étape photo pour gagner du temps
   useEffect(() => {
@@ -41,9 +44,10 @@ export default function SignalementFlow({ token }: { token?: string }) {
   async function publier() {
     if (!cat || !photo || !gps.position || !pointEffectif) return;
     setRefus(null);
+    setProgression(0);
     setEtape("envoi");
     try {
-      const r = await creerSignalement({
+      const r = await creation.mutateAsync({
         categorie: cat,
         photo: photo.blob,
         photo_prise_le: photo.prise_le,
@@ -51,6 +55,7 @@ export default function SignalementFlow({ token }: { token?: string }) {
         point: pointEffectif,
         description: description || undefined,
         token,
+        onProgression: setProgression,
       });
       setResultat(r);
       setDuree(Math.round((Date.now() - debut.current) / 1000));
@@ -193,7 +198,11 @@ export default function SignalementFlow({ token }: { token?: string }) {
                 disabled={etape === "envoi" || gps.etat !== "ok"}
                 className="rounded-xl bg-lime-400 py-4 text-lg font-bold text-violet-950 disabled:opacity-50"
               >
-                {etape === "envoi" ? "Vérification en cours…" : "Publier le signalement"}
+                {etape === "envoi"
+                  ? progression < 100
+                    ? `Envoi de la photo… ${progression} %`
+                    : "Vérification en cours…"
+                  : "Publier le signalement"}
               </button>
             </>
           )}

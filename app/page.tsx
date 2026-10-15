@@ -31,7 +31,7 @@ export default function Accueil() {
           Pas de données mobiles ? Écris « Signaler » sur WhatsApp au numéro de la plateforme.
         </p>
         <Link href="/mairie" className="mt-auto text-center text-sm text-violet-900 underline">
-          Espace mairie
+          Espace mairie (bonus)
         </Link>
       </main>
     </>

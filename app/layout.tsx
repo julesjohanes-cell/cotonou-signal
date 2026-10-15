@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import AntdProvider from "@/components/AntdProvider";
+import QueryProvider from "@/components/QueryProvider";
 import "./globals.css";
 
 // Polices système : rien à télécharger (utile si le réseau de la salle est faible)
@@ -20,7 +21,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="fr" className="h-full antialiased">
       <body className="mx-auto flex min-h-full w-full max-w-5xl flex-col font-sans">
         <AntdRegistry>
-          <AntdProvider>{children}</AntdProvider>
+          <QueryProvider>
+            <AntdProvider>{children}</AntdProvider>
+          </QueryProvider>
         </AntdRegistry>
       </body>
     </html>

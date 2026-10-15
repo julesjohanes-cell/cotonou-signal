@@ -1,4 +1,5 @@
 // Petits composants partagés (mise en page, statut, catégorie).
+// Utilisables côté serveur : pas d'antd ni d'icônes antd ici (elles exigent un composant client).
 import Link from "next/link";
 import type { CategorieCode, Statut } from "@/lib/types";
 import { categorie, STATUTS } from "@/lib/categories";
@@ -40,8 +41,4 @@ export function LibelleCategorie({ code }: { code: CategorieCode }) {
       <span>{c.libelle}</span>
     </span>
   );
-}
-
-export function dateCourte(iso: string) {
-  return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }

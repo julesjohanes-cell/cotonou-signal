@@ -1,32 +1,23 @@
 "use client";
-// ÉQUIPE PUBLIC — suivi d'un signalement (aucune donnée personnelle)
-import { useEffect, useState } from "react";
+// ÉQUIPE WHATSAPP + SUIVI — suivi d'un signalement (aucune donnée personnelle)
 import { useParams } from "next/navigation";
-import { BadgeStatut, Entete, LibelleCategorie, dateCourte } from "@/components/ui";
+import { BadgeStatut, Entete, LibelleCategorie } from "@/components/ui";
 import { MapView } from "@/components/carte";
-import { suivre, ApiError } from "@/lib/api";
+import { useSuivi } from "@/hooks/useSignalements";
 import { ORDRE_STATUTS, STATUTS, categorie } from "@/lib/categories";
-import type { SignalementPublic } from "@/lib/types";
+import { dateCourte, depuis } from "@/lib/dates";
 
 export default function Suivi() {
   const { numero } = useParams<{ numero: string }>();
-  const [s, setS] = useState<SignalementPublic | null>(null);
-  const [erreur, setErreur] = useState<string | null>(null);
-
-  useEffect(() => {
-    suivre(decodeURIComponent(numero))
-      .then(setS)
-      .catch((e) => setErreur(e instanceof ApiError ? e.message : "Erreur"));
-  }, [numero]);
-
+  const { data: s, isPending, error } = useSuivi(decodeURIComponent(numero));
   const etapeAtteinte = s ? ORDRE_STATUTS.indexOf(s.statut) : -1;
 
   return (
     <>
       <Entete titre="Suivi" retour="/suivi" />
       <main className="flex flex-1 flex-col gap-4 p-4">
-        {erreur && <p className="rounded-xl bg-red-50 p-4 text-red-800">{erreur}</p>}
-        {!s && !erreur && <p className="text-center text-gray-500">Chargement…</p>}
+        {error && <p className="rounded-xl bg-red-50 p-4 text-red-800">{error.message}</p>}
+        {isPending && <p className="text-center text-gray-500">Chargement…</p>}
         {s && (
           <>
             <div className="flex items-start justify-between gap-2">
@@ -76,7 +67,7 @@ export default function Suivi() {
               className="h-56 w-full rounded-xl"
             />
             <p className="text-xs text-gray-500">
-              Signalé le {dateCourte(s.cree_le)} · mis à jour le {dateCourte(s.mis_a_jour_le)}
+              Signalé {depuis(s.cree_le)} ({dateCourte(s.cree_le)}) · mis à jour {depuis(s.mis_a_jour_le)}
             </p>
           </>
         )}

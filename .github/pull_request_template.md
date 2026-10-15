@@ -9,8 +9,8 @@ Closes #
 ## Vérifications
 
 - [ ] Je suis sur ma branche d'équipe (`front/…`), pas sur `main`
-- [ ] `npm run verify` est vert (lint, types, tests, build)
-- [ ] Des tests couvrent la fonctionnalité (ou le bug corrigé) dans `tests/unit`
+- [ ] `pnpm verify` est vert (lint, types, tests, build) et la CI « Qualité » est verte
+- [ ] Des tests couvrent la fonctionnalité (ou le bug corrigé) dans `tests/unit`, et `tests/e2e` si un parcours change
 - [ ] Testé sur un vrai téléphone en HTTPS : état normal, chargement, erreur, vide
 - [ ] Console du navigateur sans erreur
 - [ ] Aucune donnée personnelle sur `/carte` et `/suivi`

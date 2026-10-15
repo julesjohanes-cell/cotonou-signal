@@ -1,12 +1,16 @@
 "use client";
+// BONUS — espace agent / élu en front (Ant Design). Par défaut, la mairie travaille dans Django admin.
 // ÉQUIPE MAIRIE — espace agent / élu (Ant Design) : voir les points, changer le statut, ajouter la photo "après"
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { CloseOutlined } from "@ant-design/icons";
 import { App, Button, Card, Form, Input, Segmented, Select, Statistic, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { Entete, LibelleCategorie, dateCourte } from "@/components/ui";
+import { Entete, LibelleCategorie } from "@/components/ui";
+import { dateCourte } from "@/lib/dates";
+import { useAjouterPhotoApres, useChangerStatut, useSignalementsMairie } from "@/hooks/useSignalements";
 import { MapView, type Marqueur } from "@/components/carte";
 import CameraCapture from "@/components/CameraCapture";
-import { abonnerSession, ajouterPhotoApres, changerStatut, connexion, deconnexion, lireSessionBrute, listerMairie, ApiError } from "@/lib/api";
+import { abonnerSession, connexion, deconnexion, lireSessionBrute, ApiError } from "@/lib/api";
 import { SERVICES, STATUTS, categorie } from "@/lib/categories";
 import type { Session, SignalementMairie, Statut } from "@/lib/types";
 
@@ -18,7 +22,7 @@ export default function Mairie() {
   if (brut === undefined) return null;
   return (
     <>
-      <Entete titre="Espace mairie" />
+      <Entete titre="Espace mairie (bonus)" />
       {session ? (
         <TableauDeBord session={session} onDeconnexion={deconnexion} />
       ) : (
@@ -63,25 +67,19 @@ function Connexion() {
 
 function TableauDeBord({ session, onDeconnexion }: { session: Session; onDeconnexion: () => void }) {
   const { message } = App.useApp();
-  const [liste, setListe] = useState<SignalementMairie[]>([]);
   const [statut, setStatut] = useState<Statut | undefined>();
   const [service, setService] = useState<string | undefined>(session.service ?? undefined);
   const [selection, setSelection] = useState<string | null>(null);
 
-  const charger = useCallback(() => {
-    listerMairie({ statut, service })
-      .then(setListe)
-      .catch((e) => {
-        if (e instanceof ApiError && e.status === 401) onDeconnexion();
-      });
-  }, [statut, service, onDeconnexion]);
+  // Rafraîchi toutes les 10 s par le hook : le signalement fait en direct apparaît pendant la démo
+  const { data, error } = useSignalementsMairie({ statut, service });
+  const liste = useMemo(() => data ?? [], [data]);
+  const statutMaj = useChangerStatut();
+  const photoApres = useAjouterPhotoApres();
 
-  // Rafraîchissement auto : le signalement fait en direct apparaît pendant la démo
   useEffect(() => {
-    charger();
-    const t = setInterval(charger, 10000);
-    return () => clearInterval(t);
-  }, [charger]);
+    if (error instanceof ApiError && error.status === 401) onDeconnexion();
+  }, [error, onDeconnexion]);
 
   const marqueurs: Marqueur[] = useMemo(
     () =>
@@ -99,13 +97,10 @@ function TableauDeBord({ session, onDeconnexion }: { session: Session; onDeconne
     return { total, nouveau: n("nouveau"), encours: n("pris_en_charge"), resolu: n("resolu"), taux: total ? Math.round((n("resolu") / total) * 100) : 0 };
   }, [liste]);
 
-  const remplacer = (maj: SignalementMairie) =>
-    setListe((l) => l.map((s) => (s.numero_suivi === maj.numero_suivi ? maj : s)));
-
   async function majStatut(st: Statut) {
     if (!choisi) return;
     try {
-      remplacer(await changerStatut(choisi.numero_suivi, st));
+      await statutMaj.mutateAsync({ numero: choisi.numero_suivi, statut: st });
       message.success(`Statut : ${STATUTS[st].libelle}`);
     } catch (e) {
       message.error(e instanceof ApiError ? e.message : "Modification impossible");
@@ -174,7 +169,7 @@ function TableauDeBord({ session, onDeconnexion }: { session: Session; onDeconne
             <Card
               size="small"
               title={<LibelleCategorie code={choisi.categorie} />}
-              extra={<Button type="text" onClick={() => setSelection(null)} aria-label="Fermer">✕</Button>}
+              extra={<Button type="text" onClick={() => setSelection(null)} aria-label="Fermer" icon={<CloseOutlined />} />}
             >
               <p className="text-xs text-gray-500">
                 {choisi.numero_suivi} · {choisi.source} · ± {choisi.precision_m} m · {choisi.service} · {dateCourte(choisi.cree_le)}
@@ -202,7 +197,7 @@ function TableauDeBord({ session, onDeconnexion }: { session: Session; onDeconne
                     libelle="Ajouter la photo après"
                     onPhoto={async (p) => {
                       try {
-                        remplacer(await ajouterPhotoApres(choisi.numero_suivi, p.blob));
+                        await photoApres.mutateAsync({ numero: choisi.numero_suivi, photo: p.blob });
                         message.success("Photo « après » ajoutée");
                       } catch (e) {
                         message.error(e instanceof ApiError ? e.message : "Envoi impossible");
