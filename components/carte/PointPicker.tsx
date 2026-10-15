@@ -5,6 +5,7 @@ import { Map as MlMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { configurerMapLibre, styleCarte } from "./style";
 import { DISTANCE_MAX_M, limiterDistance, type Position } from "@/lib/geo";
+import { COULEURS } from "@/lib/jetons";
 
 interface Props {
   gps: Position;
@@ -43,11 +44,11 @@ export default function PointPicker({ gps, point, onChange, className }: Props) 
     // Position du citoyen (point bleu, non déplaçable)
     const moi = document.createElement("div");
     moi.style.cssText =
-      "width:16px;height:16px;border-radius:9999px;background:#2563eb;border:3px solid white;box-shadow:0 0 0 2px rgba(37,99,235,.35)";
+      `width:16px;height:16px;border-radius:9999px;background:${COULEURS.positionCitoyen};border:3px solid ${COULEURS.surface};box-shadow:0 0 0 2px ${COULEURS.positionCitoyen}59`; // halo à 35 %
     new Marker({ element: moi }).setLngLat([gps.lng, gps.lat]).addTo(map);
 
     // Point du problème (déplaçable)
-    const m = new Marker({ draggable: true, color: "#3b0f70" }).setLngLat([point.lng, point.lat]).addTo(map);
+    const m = new Marker({ draggable: true, color: COULEURS.marque }).setLngLat([point.lng, point.lat]).addTo(map);
     const deplacer = (lng: number, lat: number) => {
       const p = limiterDistance(gps, { lat, lng });
       m.setLngLat([p.lng, p.lat]);
@@ -62,8 +63,8 @@ export default function PointPicker({ gps, point, onChange, className }: Props) 
     // Zone autorisée : cercle de 100 m
     map.on("load", () => {
       map.addSource("zone", { type: "geojson", data: cercle(gps.lat, gps.lng, DISTANCE_MAX_M) });
-      map.addLayer({ id: "zone-fond", type: "fill", source: "zone", paint: { "fill-color": "#3b0f70", "fill-opacity": 0.08 } });
-      map.addLayer({ id: "zone-bord", type: "line", source: "zone", paint: { "line-color": "#3b0f70", "line-width": 2, "line-dasharray": [2, 2] } });
+      map.addLayer({ id: "zone-fond", type: "fill", source: "zone", paint: { "fill-color": COULEURS.marque, "fill-opacity": 0.08 } });
+      map.addLayer({ id: "zone-bord", type: "line", source: "zone", paint: { "line-color": COULEURS.marque, "line-width": 2, "line-dasharray": [2, 2] } });
     });
 
     return () => map.remove();

@@ -1,14 +1,92 @@
 @import "tailwindcss";
 
-/* Couleurs du brief Cotonou Code la nuit */
-@theme inline {
-  --color-marque: #3a0c6f;
-  --color-citron: #bae206;
+/*
+ * Jetons du design system « Cotonou Signale » (couleurs du brief Cotonou Code la nuit).
+ * Source unique des couleurs : la palette Tailwind par défaut est désactivée, seules ces classes existent
+ * (bg-marque, text-encre-douce, border-filet…). Miroir JavaScript : lib/jetons.ts.
+ * tests/unit/jetons.test.ts vérifie que les deux sont identiques et qu'aucune autre couleur n'est employée.
+ */
+@theme {
+  --color-*: initial;
+
+  /* Marque */
+  --color-marque: #3a0c6f; /* fond de l'en-tête et de l'accroche, titres d'écran */
+  --color-violet: #481689; /* boutons primaires, liens, étapes atteintes, puce active */
+  --color-citron: #bae206; /* une seule action principale par écran ; jamais en texte sur fond clair */
+
+  /* Texte */
+  --color-encre: #1b1327;
+  --color-encre-douce: #4d445f; /* aides, descriptions */
+  --color-encre-pale: #6d657f; /* dates, légendes, texte indicatif */
+  --color-sur-marque: #ffffff; /* texte sur marque, violet, statuts */
+  --color-sur-marque-doux: #dbd1eb; /* texte secondaire sur marque */
+  --color-sur-citron: #3a0c6f;
+
+  /* Fonds, filets, focus */
+  --color-fond: #f9f8fb;
+  --color-surface: #ffffff;
+  --color-teinte: #efebf5; /* sélection, numéro de suivi, piste des étapes */
+  --color-filet: #dbd4e5; /* séparateurs décoratifs */
+  --color-contour: #6d657f; /* contour des champs et contrôles sans fond */
+  --color-focus: #481689;
+  --color-focus-sur-marque: #bae206;
+
+  /* États */
+  --color-erreur-fond: oklch(97.1% 0.013 17.38);
+  --color-erreur-filet: oklch(88.5% 0.062 18.334);
+  --color-erreur: oklch(44.4% 0.177 26.899);
+  --color-succes-fond: oklch(98.2% 0.018 155.826);
+  --color-succes: oklch(44.8% 0.119 151.328);
+  --color-attente-fond: oklch(98.7% 0.022 95.277);
+  --color-attente: oklch(47.3% 0.137 46.201);
+  --color-neutre-fond: oklch(98.5% 0.002 247.839);
+  --color-neutre: oklch(37.3% 0.034 259.733);
+
+  /* Statuts (toujours avec leur libellé) */
+  --color-statut-nouveau: #dc2626;
+  --color-statut-pris-en-charge: #c2410c;
+  --color-statut-resolu: #15803d;
+  --color-statut-rejete: #6b7280;
+
+  /* Carte */
+  --color-pastille-confirmations: #1e1b4b;
+  --color-position-citoyen: #2563eb;
+
+  /* Catégories (lib/categories.ts) */
+  --color-cat-depot-ordures: #7c3aed;
+  --color-cat-caniveau-bouche: #0891b2;
+  --color-cat-brulage-dechets: #dc2626;
+  --color-cat-eau-stagnante: #2563eb;
+  --color-cat-chaussee-degradee: #a16207;
+  --color-cat-regard-dangereux: #ea580c;
+  --color-cat-eclairage-panne: #ca8a04;
+  --color-cat-vehicule-abandonne: #475569;
+  --color-cat-autre: #6b7280;
+
+  --radius-agents: 10px; /* Ant Design (espace mairie) */
+  --shadow-marqueur: 0 1px 4px rgba(0,0,0,0.4);
 }
 
-body {
-  background: #f8f7fb;
-  color: #1e1b2e;
+/* Aplat de marque (en-tête, accroche) : fond, texte et anneau de focus adaptés */
+@utility fond-marque {
+  background-color: var(--color-marque);
+  color: var(--color-sur-marque);
+  & :focus-visible {
+    outline-color: var(--color-focus-sur-marque);
+  }
+}
+
+@layer base {
+  body {
+    background: var(--color-fond);
+    color: var(--color-encre);
+  }
+
+  /* Focus clavier : anneau plein de 2 px, à 2 px du contrôle (violet sur fond clair, citron sur marque) */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
 }
 
 /* Mobile d'abord */

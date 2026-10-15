@@ -5,6 +5,7 @@ import { Map as MlMap, Marker, NavigationControl, LngLatBounds } from "maplibre-
 import "maplibre-gl/dist/maplibre-gl.css";
 import { configurerMapLibre, styleCarte } from "./style";
 import { COTONOU_CENTRE, COTONOU_ZOOM } from "@/lib/geo";
+import { COULEURS, OMBRES } from "@/lib/jetons";
 
 export interface Marqueur {
   id: string;
@@ -29,14 +30,14 @@ function creerElement(m: Marqueur, selectionne: boolean): HTMLElement {
   el.type = "button";
   el.title = m.titre ?? "";
   el.style.cssText = `width:${selectionne ? 40 : 32}px;height:${selectionne ? 40 : 32}px;border-radius:9999px;
-    background:${m.couleur};border:3px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);
+    background:${m.couleur};border:3px solid ${COULEURS.surface};box-shadow:${OMBRES.marqueur};
     display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;position:relative;`;
   el.textContent = m.contenu ?? "";
   if (m.badge && m.badge > 1) {
     const b = document.createElement("span");
     b.textContent = `+${m.badge - 1}`;
     b.style.cssText =
-      "position:absolute;top:-8px;right:-10px;background:#1e1b4b;color:white;font-size:10px;font-weight:700;padding:1px 4px;border-radius:9999px;";
+      `position:absolute;top:-8px;right:-10px;background:${COULEURS.pastilleConfirmations};color:${COULEURS.surMarque};font-size:10px;font-weight:700;padding:1px 4px;border-radius:9999px;`;
     el.appendChild(b);
   }
   return el;

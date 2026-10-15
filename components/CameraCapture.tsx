@@ -44,11 +44,11 @@ export default function CameraCapture({ onPhoto, libelle = "Prendre la photo" }:
         type="button"
         onClick={() => input.current?.click()}
         disabled={travail}
-        className="rounded-xl bg-violet-900 px-5 py-4 text-lg font-semibold text-white active:scale-[.98] disabled:opacity-60"
+        className="rounded-xl bg-violet px-5 py-4 text-lg font-semibold text-sur-marque active:scale-[.98] disabled:opacity-60"
       >
         {travail ? "Préparation…" : `📷 ${libelle}`}
       </button>
-      {erreur && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{erreur}</p>}
+      {erreur && <p className="rounded-lg bg-erreur-fond p-3 text-sm text-erreur">{erreur}</p>}
     </div>
   );
 }

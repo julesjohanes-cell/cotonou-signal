@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import QueryProvider from "@/components/QueryProvider";
+import { COULEURS } from "@/lib/jetons";
 import "./globals.css";
 
 // Mobile d'abord : polices système (rien à télécharger), pas d'Ant Design ici (chargé seulement dans (agents)).
@@ -12,7 +13,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover", // écrans à encoche : on gère les zones sûres avec env(safe-area-inset-*)
-  themeColor: "#2e1065",
+  themeColor: COULEURS.marque,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

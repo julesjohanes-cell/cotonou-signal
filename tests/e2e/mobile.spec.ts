@@ -35,3 +35,16 @@ test("les pages citoyennes ne chargent pas Ant Design", async ({ page }) => {
   await expect(page.getByText("Quel est le problème ?")).toBeVisible();
   expect(scripts.some((s) => s.includes("ant-btn"))).toBe(false);
 });
+
+test("le logotype de l'en-tête tient sur une ligne, avec son espace : « Cotonou Signale »", async ({ page }) => {
+  // Le lien est en flex : sans span autour du texte, l'espace avant « Signale » disparaissait à l'écran.
+  // /s/[token] n'a pas de flèche retour mais un titre long : le logotype ne doit pas passer sur deux lignes.
+  for (const route of ["/", "/s/lien-valide"]) {
+    await page.goto(route);
+    const logo = page.locator('header a[href="/"]');
+    // innerText reflète le rendu ("Cotonou\nSignale" quand l'espace saute) ; toHaveText normaliserait les espaces.
+    expect(await logo.innerText(), route).toBe("Cotonou Signale");
+    const hauteur = (await logo.locator("span").first().boundingBox())?.height ?? 0;
+    expect(hauteur, `${route} : une seule ligne`).toBeLessThan(30);
+  }
+});

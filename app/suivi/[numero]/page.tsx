@@ -16,17 +16,17 @@ export default function Suivi() {
     <>
       <Entete titre="Suivi" retour="/suivi" />
       <main className="flex flex-1 flex-col gap-4 p-4">
-        {error && <p className="rounded-xl bg-red-50 p-4 text-red-800">{error.message}</p>}
-        {isPending && <p className="text-center text-gray-500">Chargement…</p>}
+        {error && <p className="rounded-xl bg-erreur-fond p-4 text-erreur">{error.message}</p>}
+        {isPending && <p className="text-center text-encre-pale">Chargement…</p>}
         {s && (
           <>
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="font-mono text-sm text-gray-500">{s.numero_suivi}</p>
-                <h1 className="text-xl font-bold text-violet-950">
+                <p className="font-mono text-sm text-encre-pale">{s.numero_suivi}</p>
+                <h1 className="text-xl font-bold text-marque">
                   <LibelleCategorie code={s.categorie} />
                 </h1>
-                <p className="text-sm text-gray-500">Service : {categorie(s.categorie).service}</p>
+                <p className="text-sm text-encre-pale">Service : {categorie(s.categorie).service}</p>
               </div>
               <BadgeStatut statut={s.statut} />
             </div>
@@ -34,14 +34,14 @@ export default function Suivi() {
             <ol className="flex gap-1">
               {ORDRE_STATUTS.map((st, i) => (
                 <li key={st} className="flex-1">
-                  <div className={`h-2 rounded-full ${i <= etapeAtteinte ? "bg-violet-900" : "bg-violet-100"}`} />
+                  <div className={`h-2 rounded-full ${i <= etapeAtteinte ? "bg-violet" : "bg-teinte"}`} />
                   <p className="mt-1 text-xs">{STATUTS[st].libelle}</p>
                 </li>
               ))}
             </ol>
 
             {s.nb_confirmations > 1 && (
-              <p className="text-sm text-violet-900">👥 Confirmé par {s.nb_confirmations} habitants</p>
+              <p className="text-sm text-violet">👥 Confirmé par {s.nb_confirmations} habitants</p>
             )}
 
             <div className="grid grid-cols-2 gap-2">
@@ -49,14 +49,14 @@ export default function Suivi() {
                 <figure>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={s.photo_url} alt="Avant" className="h-40 w-full rounded-xl object-cover" />
-                  <figcaption className="text-xs text-gray-500">Avant</figcaption>
+                  <figcaption className="text-xs text-encre-pale">Avant</figcaption>
                 </figure>
               )}
               {s.photo_apres_url && (
                 <figure>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={s.photo_apres_url} alt="Après" className="h-40 w-full rounded-xl object-cover" />
-                  <figcaption className="text-xs text-gray-500">Après</figcaption>
+                  <figcaption className="text-xs text-encre-pale">Après</figcaption>
                 </figure>
               )}
             </div>
@@ -66,7 +66,7 @@ export default function Suivi() {
               selection={s.numero_suivi}
               className="h-56 w-full rounded-xl"
             />
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-encre-pale">
               Signalé {depuis(s.cree_le)} ({dateCourte(s.cree_le)}) · mis à jour {depuis(s.mis_a_jour_le)}
             </p>
           </>
