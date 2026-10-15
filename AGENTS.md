@@ -10,7 +10,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Cotonou Signale : règles du projet (humains et IA)
 
-- Interface en **français**, pensée **mobile d'abord** (écran 390 px), Tailwind uniquement.
+- Interface en **français**, pensée **mobile d'abord** (écran 390 px).
+- **Ant Design** pour l'espace mairie (`app/mairie` : Table, Form, Select, Tag, Statistic, `App.useApp().message`). **Tailwind** pour le parcours citoyen et la mise en page. Pas d'antd sur `/signaler` (page légère). Pas de CSS maison : couleurs du brief uniquement (thème dans `components/AntdProvider.tsx`, jetons dans `app/globals.css`).
 - **Aucun `fetch` dans les composants** : tout appel passe par `lib/api.ts`. Nouveau besoin d'API → ajouter une fonction dans `lib/api.ts` (version mock + version réelle) et le type dans `lib/types.ts`.
 - `lib/types.ts` = contrat avec le back Django. Ne pas le modifier sans prévenir l'équipe back.
 - Cartes : toujours importer depuis `@/components/carte` (`MapView`, `PointPicker`), jamais `maplibre-gl` directement dans une page.

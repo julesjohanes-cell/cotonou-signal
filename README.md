@@ -25,14 +25,25 @@ Ouvre l'URL `https://….trycloudflare.com` sur le téléphone. Next relaie `/ap
 une seule URL, **pas de CORS** à configurer côté Django.
 Pour la démo : `npm run build && npm start` derrière le tunnel (plus rapide et plus stable que `dev`).
 
+## Stack
+
+Next.js 16 (App Router, TypeScript) · Ant Design 6 pour l'espace mairie (thème aux couleurs du brief, `fr_FR`) · Tailwind CSS 4 pour le parcours citoyen · MapLibre + OpenFreeMap/OSM · tunnel Cloudflare pour le HTTPS.
+
+## Organisation GitHub
+
+- `main` protégée : aucun push direct, c'est elle qui tourne pour la démo.
+- Une branche par équipe : `front/capture`, `front/public`, `front/mairie`.
+- Une PR par ticket (issue), toutes les 20 à 30 min, `npm run build` vert, relue et fusionnée par le mentor front.
+- Issues avec labels `capture` / `public` / `mairie` et `P0` / `P1`.
+
 ## Pages et équipes
 
 | Équipe | Pages | Fichiers |
 |---|---|---|
 | **Capture** | `/signaler`, `/s/[token]` (lien WhatsApp) | `app/signaler`, `app/s`, `components/signalement`, `components/CameraCapture.tsx`, `hooks/` |
 | **Public** | `/carte`, `/suivi`, `/suivi/[numero]` | `app/carte`, `app/suivi` |
-| **Mairie** | `/mairie` (agent + chiffres élu) | `app/mairie` |
-| **Mentor front** | fichiers partagés | `lib/`, `components/carte`, `components/ui.tsx` |
+| **Mairie** | `/mairie` (agent + chiffres élu, Ant Design) | `app/mairie` |
+| **Mentor front** | fichiers partagés | `lib/`, `components/carte`, `components/ui.tsx`, `components/AntdProvider.tsx` |
 
 Raccourcis en mode mock : `/s/expire` et `/s/utilise` (liens invalides), identifiant `elu` sur `/mairie`,
 `NEXT_PUBLIC_MOCK_REFUS=photo_hors_sujet` pour afficher un refus.
