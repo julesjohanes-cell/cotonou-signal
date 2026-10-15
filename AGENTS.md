@@ -71,7 +71,7 @@ Ne jamais inventer une fonctionnalité hors backlog, ni un chiffre, un témoigna
 
 - **pnpm uniquement** (jamais npm ni yarn). `pnpm-lock.yaml` est commité ; une dépendance s'ajoute avec `pnpm add` et se justifie dans la PR.
 - La CI GitHub Actions (`.github/workflows/ci.yml`) lance le contrôle **« Qualité »** sur chaque PR :
-  installation figée, lint, types, tests unitaires, build, parcours e2e.
+  installation figée, audit des dépendances, lint, types, tests unitaires, build, parcours e2e (dont la protection des routes).
 - **Une PR rouge ne se fusionne pas.** Ne jamais désactiver, sauter ou affaiblir une étape de CI pour la faire passer.
 - `main` est protégée : PR obligatoire, « Qualité » requis, une relecture (le mentor front).
 - CD : la machine de démo suit `main` (`pnpm demo:cd`) ; chaque fusion est en ligne en quelques minutes. Le gel de `main` 15 min avant la démo vaut aussi pour la CD.
@@ -96,9 +96,36 @@ Ne jamais inventer une fonctionnalité hors backlog, ni un chiffre, un témoigna
 - Captures, rapports et fichiers temporaires hors du dépôt.
 - Une PR = un ticket, avec le modèle `.github/pull_request_template.md` rempli.
 
-## 9. Vie privée
+## 9. Sécurité, routes protégées et vie privée
+
+**Routes**
+
+- Publiques : `/`, `/signaler`, `/s/[token]`, `/carte`, `/suivi/*`, et en API `/api/signalements*`, `/api/wa/*`.
+- Protégées **côté serveur** par `proxy.ts` : pages `/mairie/*` (sinon redirection vers `/connexion`) et API `/api/mairie/*` (sinon 401).
+- Toute nouvelle page ou API réservée aux agents s'ajoute au `matcher` de `proxy.ts` **et** à `PAGES_PROTEGEES` / `API_PROTEGEES`
+  de `lib/securite.ts`, avec un test e2e « sans session = refus ». Masquer un bouton ou un lien n'est **pas** une protection.
+- Le vrai contrôle d'accès reste celui de Django (permissions DRF par rôle) ; Django admin est réservé aux comptes staff.
+
+**Session et secrets**
+
+- Le jeton de session vit **uniquement** dans le cookie httpOnly `cs_jeton` (SameSite=Strict, Secure en HTTPS), posé par la route `/session`.
+  Jamais dans `localStorage`, `sessionStorage`, une URL, un log ou le code. L'interface ne lit que `cs_profil` (nom, rôle, service), sans secret.
+- Aucun secret dans le code ni dans une variable `NEXT_PUBLIC_*` : ces variables sont copiées dans le JavaScript envoyé au navigateur.
+- Redirections : uniquement vers un chemin interne (`suiteSure`). Requêtes qui modifient : même origine (vérifiée par le proxy) + SameSite=Strict.
+
+**Code**
+
+- Jamais `dangerouslySetInnerHTML`, jamais de HTML construit à la main avec une donnée saisie : React échappe le texte, on le laisse faire.
+- Entrées : le front valide type et longueur pour guider (photo : image de 15 Mo maximum ; description : 500 caractères) ; Django revalide tout.
+- En-têtes de sécurité dans `next.config.ts` (CSP, X-Frame-Options, Permissions-Policy, HSTS) : ne jamais les affaiblir.
+  Un nouveau domaine externe s'ajoute explicitement à la CSP, dans une PR qui le justifie.
+- Lien WhatsApp `/s/[token]` : usage unique, 10 minutes, `Referrer-Policy: no-referrer`, jamais affiché dans les logs ni indexé.
+- Dépendances : `pnpm audit --prod` tourne en CI ; aucune dépendance ajoutée sans justification dans la PR.
+
+**Vie privée**
 
 - Aucune page publique (`/carte`, `/suivi`) n'affiche le téléphone, le nom ou la position GPS du citoyen : seul le point du problème est public.
+- Jamais de donnée personnelle (téléphone, position GPS du citoyen) dans la console ou les logs.
 - On signale des **lieux, jamais des personnes**.
 
 ## 10. Compte rendu de l'agent (obligatoire en fin de tâche)

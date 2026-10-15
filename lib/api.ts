@@ -2,9 +2,10 @@
 // ils passent par les hooks TanStack Query de hooks/useSignalements.ts.
 import axios, { type AxiosError } from "axios";
 import type {
-  CategorieCode, CreationReponse, ErreurApi, LienWhatsApp, Session,
+  CategorieCode, CreationReponse, ErreurApi, LienWhatsApp, Profil,
   SignalementMairie, SignalementPublic, Statut,
 } from "./types";
+import { COOKIE_PROFIL } from "./securite";
 import { mockStore, attendre } from "./mocks";
 import { categorie } from "./categories";
 import { distanceM, estDansCotonou, type Position } from "./geo";
@@ -18,48 +19,35 @@ export class ApiError extends Error {
   }
 }
 
-// ---------- Session mairie (token DRF) ----------
-const CLE_SESSION = "cs_session";
+// ---------- Session agent (bonus) ----------
+// Le jeton DRF vit dans un cookie httpOnly posé par la route /session : le JavaScript ne le voit jamais
+// (un script injecté ne peut pas le voler). proxy.ts l'ajoute aux appels /api/mairie.
+// L'interface ne lit que le cookie de profil (nom, rôle, service), sans secret.
 const EVT_SESSION = "cs-session";
+const notifierSession = () => {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT_SESSION));
+};
 
-export function lireSession(): Session | null {
-  const brut = lireSessionBrute();
-  return brut ? (JSON.parse(brut) as Session) : null;
-}
-/** Chaîne brute (stable entre deux rendus) pour useSyncExternalStore. */
-export function lireSessionBrute(): string | null {
+/** Profil brut (chaîne stable entre deux rendus) pour useSyncExternalStore ; null si non connecté. */
+export function lireProfilBrut(): string | null {
+  if (typeof document === "undefined") return null;
+  const c = document.cookie.split("; ").find((x) => x.startsWith(`${COOKIE_PROFIL}=`));
+  if (!c) return null;
   try {
-    return localStorage.getItem(CLE_SESSION);
+    const b64 = decodeURIComponent(c.slice(COOKIE_PROFIL.length + 1)).replace(/-/g, "+").replace(/_/g, "/");
+    return new TextDecoder().decode(Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)));
   } catch {
     return null;
   }
 }
 export function abonnerSession(rappel: () => void): () => void {
   window.addEventListener(EVT_SESSION, rappel);
-  window.addEventListener("storage", rappel);
-  return () => {
-    window.removeEventListener(EVT_SESSION, rappel);
-    window.removeEventListener("storage", rappel);
-  };
+  return () => window.removeEventListener(EVT_SESSION, rappel);
 }
-function ecrireSession(s: Session | null) {
-  try {
-    if (s) localStorage.setItem(CLE_SESSION, JSON.stringify(s));
-    else localStorage.removeItem(CLE_SESSION);
-  } catch {}
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT_SESSION));
-}
-export const deconnexion = () => ecrireSession(null);
 
 // ---------- Client axios ----------
 // Même origine : Next relaie /api vers Django (next.config.ts), donc pas de CORS.
 const client = axios.create({ baseURL: "/api", timeout: 30_000, headers: { Accept: "application/json" } });
-
-client.interceptors.request.use((config) => {
-  const s = typeof window !== "undefined" ? lireSession() : null;
-  if (s) config.headers.set("Authorization", `Token ${s.token}`);
-  return config;
-});
 
 // Toute erreur devient une ApiError { code, message, status } : les écrans n'ont qu'un format à gérer
 client.interceptors.response.use(
@@ -69,7 +57,7 @@ client.interceptors.response.use(
       const code = e.code === "ECONNABORTED" ? "delai" : "reseau";
       return Promise.reject(new ApiError(code, messageRefus(code)));
     }
-    if (e.response.status === 401) ecrireSession(null);
+    if (e.response.status === 401) notifierSession();
     const d = e.response.data ?? {};
     return Promise.reject(
       new ApiError(d.code ?? `http_${e.response.status}`, d.message ?? `Erreur serveur (${e.response.status})`, e.response.status),
@@ -172,16 +160,16 @@ export async function verifierLien(token: string): Promise<LienWhatsApp> {
 }
 
 // ---------- Mairie (bonus front : par défaut, la mairie utilise Django admin) ----------
-export async function connexion(identifiant: string, motDePasse: string): Promise<Session> {
-  let s: Session;
-  if (MOCKS) {
-    await attendre();
-    s = { token: "mock", nom: identifiant || "agent", role: identifiant === "elu" ? "elu" : "agent", service: null };
-  } else {
-    s = (await client.post<Session>("/auth/login", { username: identifiant, password: motDePasse })).data;
-  }
-  ecrireSession(s);
-  return s;
+/** Ouvre la session via la route Next /session (même en mode simulé : la protection des routes est réelle). */
+export async function connexion(identifiant: string, motDePasse: string): Promise<Profil> {
+  const r = await client.post<Profil>("/session", { identifiant, motDePasse }, { baseURL: "" });
+  notifierSession();
+  return r.data;
+}
+
+export async function deconnexion(): Promise<void> {
+  await client.delete("/session", { baseURL: "" }).catch(() => undefined);
+  notifierSession();
 }
 
 export interface FiltresMairie {

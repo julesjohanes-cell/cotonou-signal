@@ -38,6 +38,9 @@ jobs:
       - name: Installer (lockfile figé)
         run: pnpm install --frozen-lockfile
 
+      - name: Audit des dépendances (failles hautes et critiques)
+        run: pnpm audit --prod --audit-level high
+
       - name: Lint
         run: pnpm lint
 

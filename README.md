@@ -34,6 +34,23 @@ Résultats de l'atelier design thinking (personas, parcours testés, priorités)
 - **CD** : sur la machine de démo, `pnpm demo:cd` suit `origin/main` ; à chaque fusion, il réinstalle, rebuild et redémarre
   (si le build échoue, l'ancienne version reste en ligne). Le tunnel Cloudflare pointe sur ce serveur.
 
+## Sécurité et routes protégées
+
+| Route | Accès | Protection |
+|---|---|---|
+| `/`, `/signaler`, `/s/[token]`, `/carte`, `/suivi/*` | Public | Aucune donnée personnelle affichée ; `/s/*` en `no-referrer`, non indexé |
+| `/mairie/*` (bonus) | Agents | `proxy.ts` : sans session → `/connexion` |
+| `/api/mairie/*` | Agents | `proxy.ts` : sans session → 401 ; sinon relais vers Django avec `Authorization: Token …` |
+| `/session` | Connexion | Pose le cookie httpOnly `cs_jeton` (SameSite=Strict) ; le jeton n'est jamais lisible en JavaScript |
+| Django admin | Staff | Géré par le back |
+
+En-têtes posés sur toutes les pages (`next.config.ts`) : CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+`Permissions-Policy` (caméra et position pour notre origine seulement), HSTS. Règles complètes : `AGENTS.md`, section 9.
+
+À vérifier côté back (Django) : permissions DRF par rôle, limitation de débit sur `POST /api/signalements` et `/api/auth/login`,
+validation serveur de tout (GPS, type et taille de photo, métadonnées EXIF retirées, floutage), jeton WhatsApp à usage unique
+de 10 minutes, Django admin réservé au staff, `DEBUG=False` et `SECRET_KEY` hors du dépôt, journal d'audit.
+
 ## Tester sur un téléphone (obligatoire pour caméra + GPS)
 
 Le navigateur refuse la caméra et le GPS en `http://192.168…`. Il faut du **HTTPS** :
@@ -70,9 +87,9 @@ une seule URL, **pas de CORS** à configurer côté Django.
 | **WhatsApp + suivi** | `/s/[token]`, `/suivi`, `/suivi/[numero]` | `app/s`, `app/suivi` |
 | **Carte** | `/carte` | `app/carte` |
 | **Bonus** | `/mairie` (Ant Design) | `app/mairie` — seulement si tous les P0 sont livrés ; sinon la mairie utilise **Django admin** |
-| **Mentor front** | fichiers partagés, CI/CD | `lib/`, `hooks/useSignalements.ts`, `components/carte`, `components/ui.tsx`, `components/*Provider.tsx`, `.github/` |
+| **Mentor front** | fichiers partagés, CI/CD, sécurité | `proxy.ts`, `lib/`, `hooks/useSignalements.ts`, `components/carte`, `components/ui.tsx`, `components/*Provider.tsx`, `.github/` |
 
-Raccourcis en mode simulé : `/s/expire` et `/s/utilise` (liens invalides), identifiant `elu` sur `/mairie`,
+Raccourcis en mode simulé : `/s/expire` et `/s/utilise` (liens invalides), identifiant `elu` sur `/connexion`,
 `NEXT_PUBLIC_MOCK_REFUS=photo_hors_sujet` pour afficher un refus.
 
 ## Organisation GitHub

@@ -140,6 +140,7 @@ export default function SignalementFlow({ token }: { token?: string }) {
                 placeholder="Décris le problème en quelques mots (un lieu, pas une personne)"
                 className="rounded-xl border p-3"
                 rows={3}
+                maxLength={500}
               />
               <button type="button" onClick={() => setEtape("photo")} className="rounded-xl bg-violet-900 py-3 font-semibold text-white">
                 Continuer

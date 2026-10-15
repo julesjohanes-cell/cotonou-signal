@@ -5,6 +5,8 @@
 import { useRef, useState } from "react";
 import { compresserImage, photoRecente } from "@/lib/image";
 
+const TAILLE_MAX_OCTETS = 15 * 1024 * 1024;
+
 export interface PhotoPrise {
   blob: Blob;
   apercu: string; // URL locale pour l'aperçu
@@ -27,6 +29,7 @@ export default function CameraCapture({ onPhoto, libelle = "Prendre la photo" }:
     if (!f) return;
     setErreur(null);
     if (!f.type.startsWith("image/")) return setErreur("Ce fichier n'est pas une photo.");
+    if (f.size > TAILLE_MAX_OCTETS) return setErreur("Photo trop lourde (15 Mo maximum).");
     if (!photoRecente(f)) return setErreur("Prends la photo maintenant, sur place (pas depuis la galerie).");
     setTravail(true);
     const blob = await compresserImage(f);

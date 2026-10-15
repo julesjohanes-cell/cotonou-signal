@@ -1,71 +1,48 @@
 "use client";
 // BONUS — espace agent / élu en front (Ant Design). Par défaut, la mairie travaille dans Django admin.
 // ÉQUIPE MAIRIE — espace agent / élu (Ant Design) : voir les points, changer le statut, ajouter la photo "après"
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CloseOutlined } from "@ant-design/icons";
-import { App, Button, Card, Form, Input, Segmented, Select, Statistic, Table, Tag } from "antd";
+import { App, Button, Card, Segmented, Select, Statistic, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Entete, LibelleCategorie } from "@/components/ui";
 import { dateCourte } from "@/lib/dates";
 import { useAjouterPhotoApres, useChangerStatut, useSignalementsMairie } from "@/hooks/useSignalements";
 import { MapView, type Marqueur } from "@/components/carte";
 import CameraCapture from "@/components/CameraCapture";
-import { abonnerSession, connexion, deconnexion, lireSessionBrute, ApiError } from "@/lib/api";
+import { abonnerSession, deconnexion, lireProfilBrut, ApiError } from "@/lib/api";
 import { SERVICES, STATUTS, categorie } from "@/lib/categories";
-import type { Session, SignalementMairie, Statut } from "@/lib/types";
+import type { Profil, SignalementMairie, Statut } from "@/lib/types";
 
+// Route protégée : proxy.ts redirige vers /connexion sans session, avant même d'afficher cette page.
 export default function Mairie() {
-  // undefined côté serveur, puis la session stockée dans le navigateur
-  const brut = useSyncExternalStore(abonnerSession, lireSessionBrute, () => undefined);
-  const session = useMemo<Session | null>(() => (brut ? (JSON.parse(brut) as Session) : null), [brut]);
+  const router = useRouter();
+  // undefined côté serveur, puis le profil lu dans le cookie (sans secret)
+  const brut = useSyncExternalStore(abonnerSession, lireProfilBrut, () => undefined);
+  const profil = useMemo<Profil | null>(() => (brut ? (JSON.parse(brut) as Profil) : null), [brut]);
+  const quitter = useCallback(async () => {
+    await deconnexion();
+    router.replace("/connexion");
+  }, [router]);
 
   if (brut === undefined) return null;
   return (
     <>
       <Entete titre="Espace mairie (bonus)" />
-      {session ? (
-        <TableauDeBord session={session} onDeconnexion={deconnexion} />
+      {profil ? (
+        <TableauDeBord session={profil} onDeconnexion={quitter} />
       ) : (
-        <Connexion />
+        <main className="p-6 text-center">
+          Session expirée. <Link href="/connexion?suite=/mairie" className="text-violet-900 underline">Se reconnecter</Link>
+        </main>
       )}
     </>
   );
 }
 
-function Connexion() {
-  const { message } = App.useApp();
-  const [chargement, setChargement] = useState(false);
-  return (
-    <main className="mx-auto flex w-full max-w-sm flex-col gap-3 p-6">
-      <h1 className="text-xl font-bold text-violet-950">Connexion agent</h1>
-      <Form
-        layout="vertical"
-        onFinish={async (v: { identifiant: string; motDePasse: string }) => {
-          setChargement(true);
-          try {
-            await connexion(v.identifiant, v.motDePasse ?? "");
-          } catch (err) {
-            message.error(err instanceof ApiError ? err.message : "Connexion impossible");
-          } finally {
-            setChargement(false);
-          }
-        }}
-      >
-        <Form.Item label="Identifiant" name="identifiant" rules={[{ required: true, message: "Identifiant requis" }]} extra="En mode simulé : « elu » pour la vue élu.">
-          <Input size="large" autoComplete="username" />
-        </Form.Item>
-        <Form.Item label="Mot de passe" name="motDePasse">
-          <Input.Password size="large" autoComplete="current-password" />
-        </Form.Item>
-        <Button type="primary" htmlType="submit" size="large" block loading={chargement}>
-          Se connecter
-        </Button>
-      </Form>
-    </main>
-  );
-}
-
-function TableauDeBord({ session, onDeconnexion }: { session: Session; onDeconnexion: () => void }) {
+function TableauDeBord({ session, onDeconnexion }: { session: Profil; onDeconnexion: () => void }) {
   const { message } = App.useApp();
   const [statut, setStatut] = useState<Statut | undefined>();
   const [service, setService] = useState<string | undefined>(session.service ?? undefined);

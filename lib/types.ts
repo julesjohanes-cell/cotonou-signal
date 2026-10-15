@@ -65,9 +65,13 @@ export interface LienWhatsApp {
   expire_a?: string;
 }
 
+/** Réponse de Django à la connexion. Le token ne quitte jamais le serveur Next (cookie httpOnly). */
 export interface Session {
   token: string;
   nom: string;
   role: "agent" | "elu";
   service: string | null; // null = tous les services
 }
+
+/** Ce que l'interface connaît de l'agent connecté : aucun secret. */
+export type Profil = Omit<Session, "token">;
