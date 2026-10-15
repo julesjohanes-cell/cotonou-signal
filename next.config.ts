@@ -30,6 +30,11 @@ const CSP = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // CD de démo : le serveur en ligne tourne sur une copie du build (NEXT_DIST_DIR=.next-live, voir scripts/demo-continue.sh).
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+  // CI uniquement : les types sont déjà vérifiés par tsc dans le job « Vérifications », en parallèle du build.
+  // Partout ailleurs (poste de dev, machine de démo), le build les vérifie comme d'habitude.
+  typescript: { ignoreBuildErrors: process.env.CI_TYPES_VERIFIES === "1" },
   poweredByHeader: false,
   turbopack: {
     rules: {

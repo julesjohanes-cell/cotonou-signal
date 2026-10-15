@@ -46,6 +46,8 @@ next-env.d.ts
 # Démo continue
 .demo.log
 .demo.pid
+/.next-live/
+/.next-pret/
 
 # Dossiers locaux des outils IA (les règles communes sont dans AGENTS.md)
 .claude/

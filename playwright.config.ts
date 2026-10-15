@@ -7,6 +7,9 @@ const PORT = 3100;
 export default defineConfig({
   testDir: "tests/e2e",
   timeout: 60_000,
+  // Chaque test part d'un navigateur neuf en mode simulé, sans état partagé : on les lance tous en parallèle.
+  fullyParallel: true,
+  workers: process.env.CI ? "100%" : undefined,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
@@ -16,6 +19,8 @@ export default defineConfig({
     permissions: ["geolocation"],
     locale: "fr-FR",
     trace: "retain-on-failure",
+    // CI : Chrome déjà installé sur le runner (PW_CHANNEL=chrome), rien à télécharger.
+    ...(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {}),
     // Chromium déjà installé ailleurs (ex. bac à sable) : PW_CHROMIUM_PATH=/chemin/chrome
     launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {},
   },

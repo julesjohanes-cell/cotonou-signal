@@ -14,6 +14,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Worker MapLibre copié au postinstall (fichier minifié tiers)
     "public/**",
+    // Builds de la démo continue (scripts/demo-continue.sh)
+    ".next-live/**",
+    ".next-pret/**",
   ]),
 ]);
 

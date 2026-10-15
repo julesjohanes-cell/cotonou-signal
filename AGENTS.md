@@ -92,11 +92,14 @@ Les citoyens signalent depuis la rue, sur des téléphones d'entrée de gamme et
 ## 5. CI/CD : le filet du travail à plusieurs
 
 - **pnpm uniquement** (jamais npm ni yarn). `pnpm-lock.yaml` est commité ; une dépendance s'ajoute avec `pnpm add` et se justifie dans la PR.
-- La CI GitHub Actions (`.github/workflows/ci.yml`) lance le contrôle **« Qualité »** sur chaque PR :
+- La CI GitHub Actions (`.github/workflows/ci.yml`) lance le contrôle **« Qualité »** sur chaque PR, en 1 minute environ :
   installation figée, audit des dépendances, lint, types, tests unitaires, build, parcours e2e (dont la protection des routes).
+- La CI doit rester rapide : les parcours e2e tournent **en parallèle**, donc chaque test reste indépendant (aucun état partagé,
+  aucun ordre supposé). `CI_TYPES_VERIFIES` ne sert qu'au job « Build et e2e » de la CI (les types y sont vérifiés à part) :
+  ne jamais le poser ailleurs.
 - **Une PR rouge ne se fusionne pas.** Ne jamais désactiver, sauter ou affaiblir une étape de CI pour la faire passer.
 - `main` est protégée : PR obligatoire, « Qualité » requis, une relecture (le mentor front).
-- CD : la machine de démo suit `main` (`pnpm demo:cd`) ; chaque fusion est en ligne en quelques minutes. Le gel de `main` 15 min avant la démo vaut aussi pour la CD.
+- CD : la machine de démo suit `main` (`pnpm demo:cd`) ; chaque fusion est en ligne en moins de 30 secondes. Le gel de `main` 15 min avant la démo vaut aussi pour la CD.
 
 ## 6. Vérifier dans le navigateur
 

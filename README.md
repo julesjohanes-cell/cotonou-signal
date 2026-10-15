@@ -35,12 +35,18 @@ Résultats de l'atelier design thinking (personas, parcours testés, priorités)
 
 ## CI/CD
 
-- **CI** (`.github/workflows/ci.yml`) : sur chaque PR et chaque fusion, le contrôle **« Qualité »** installe avec le lockfile figé,
-  puis lance lint, types, tests unitaires, build et parcours e2e. Une PR rouge ne se fusionne pas.
+- **CI** (`.github/workflows/ci.yml`), environ 1 minute : sur chaque PR et chaque fusion, deux jobs tournent en parallèle.
+  **« Vérifications »** : installation figée, audit, règles des agents, puis lint, types et tests unitaires lancés en même temps.
+  **« Build et e2e »** : build de production (cache `.next/cache` réutilisé, types non revérifiés), puis parcours Playwright
+  en parallèle sur le Chrome déjà installé du runner (aucun navigateur à télécharger).
+  Le contrôle **« Qualité »** n'est vert que si les deux le sont. Une PR rouge ne se fusionne pas.
 - **Protection de `main`** (à régler une fois dans GitHub › Settings › Branches) : PR obligatoire, contrôle « Qualité » requis,
   une relecture, pas de push direct.
-- **CD** : sur la machine de démo, `pnpm demo:cd` suit `origin/main` ; à chaque fusion, il réinstalle, rebuild et redémarre
-  (si le build échoue, l'ancienne version reste en ligne). Le tunnel Cloudflare pointe sur ce serveur.
+- **CD** : sur la machine de démo, `pnpm demo:cd` suit `origin/main` (vérification toutes les 15 s) ; une fusion est en ligne
+  en moins de 30 s. Le rebuild se fait dans `.next` pendant que le serveur tourne sur une copie (`.next-live`), puis bascule
+  (coupure d'une demi-seconde environ). `pnpm install` ne tourne que si les dépendances changent ; aucun rebuild si seuls la doc,
+  les tests ou la CI changent. Si le build échoue, l'ancienne version reste en ligne. Le tunnel Cloudflare pointe sur ce serveur
+  (port 3000, ou `PORT=…`). Garder le script actif en continu (dans `tmux`, par exemple).
 
 ## Sécurité et routes protégées
 
