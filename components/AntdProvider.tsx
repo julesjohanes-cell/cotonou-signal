@@ -1,15 +1,8 @@
 "use client";
-// Thème Ant Design aux couleurs du brief (même jetons que Tailwind). Utilisé surtout par l'espace mairie.
+// Thème Ant Design aux couleurs du design system (mêmes jetons que Tailwind : lib/jetons.ts). Utilisé surtout par l'espace mairie.
 import { App, ConfigProvider } from "antd";
 import frFR from "antd/locale/fr_FR";
-
-export const COULEURS = {
-  violetNuit: "#3A0C6F",
-  violet: "#481689",
-  citron: "#BAE206",
-  encre: "#1B1327",
-  fond: "#F9F8FB",
-};
+import { COULEURS, RAYONS } from "@/lib/jetons";
 
 export default function AntdProvider({ children }: { children: React.ReactNode }) {
   return (
@@ -17,10 +10,10 @@ export default function AntdProvider({ children }: { children: React.ReactNode }
       locale={frFR}
       theme={{
         token: {
-          colorPrimary: COULEURS.violetNuit,
+          colorPrimary: COULEURS.marque,
           colorLink: COULEURS.violet,
           colorText: COULEURS.encre,
-          borderRadius: 10,
+          borderRadius: RAYONS.agents,
           fontFamily: "inherit",
         },
       }}

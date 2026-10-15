@@ -22,7 +22,7 @@ Ce fichier est la **source unique** des règles du front, au format ouvert [AGEN
 
 1. Ce fichier.
 2. `docs/design-thinking.md` : personas, questions « Comment pourrions-nous », parcours papier testés, priorités.
-3. La maquette validée de l'écran (Claude Design). Pas de maquette validée = on ne code pas l'écran.
+3. La maquette validée de l'écran (Claude Design, faite avec le design system « Cotonou Signale »). Pas de maquette validée = on ne code pas l'écran.
 4. `README.md` (contrat d'API) et `lib/types.ts`.
 5. Les composants et modules existants (`components/`, `lib/`, `hooks/`) : **chercher une brique existante avant d'en créer une**.
 
@@ -69,7 +69,16 @@ Les citoyens signalent depuis la rue, sur des téléphones d'entrée de gamme et
 - **Pas de back-office en front par défaut** : la mairie travaille dans **Django admin** (équipe back). L'espace `/mairie`
   (`app/(agents)/mairie`, Ant Design) est un **bonus**, à toucher seulement quand tous les P0 sont livrés.
 - **Tailwind** pour la mise en page et les pages citoyennes ; **Ant Design** pour les composants riches de l'espace agents.
-- Un seul thème : `components/AntdProvider.tsx`. Pas de `theme={{…}}` dans une page, pas de couleur brute hors des couleurs du brief,
+- **Couleurs : uniquement les jetons du design system « Cotonou Signale »**, déclarés dans le `@theme` de `app/globals.css`
+  (miroir JavaScript : `lib/jetons.ts`). La palette Tailwind par défaut est désactivée : `bg-violet-900`, `text-gray-500`, `bg-white`…
+  ne génèrent plus rien. On écrit `bg-marque`, `bg-violet`, `bg-citron`, `text-encre`, `text-encre-douce`, `text-encre-pale`,
+  `bg-fond`, `bg-surface`, `bg-teinte`, `border-filet` (décoratif), `border-contour` (champs), `bg-erreur-fond text-erreur`, etc.
+  Aplat violet (en-tête, accroche) : `fond-marque`, qui pose aussi le texte blanc et le focus citron.
+  Une seule action principale en `bg-citron text-sur-citron` par écran ; jamais de `citron` en texte sur fond clair.
+  `tests/unit/jetons.test.ts` refuse la palette par défaut et toute couleur brute hors de ces deux fichiers, et vérifie les contrastes.
+  Une couleur manque ? On l'ajoute au design system, puis dans `app/globals.css` et `lib/jetons.ts`, dans la même PR.
+- Toujours préciser la couleur d'une bordure (`border border-filet`) : en Tailwind 4, `border` seul prend la couleur du texte.
+- Un seul thème antd : `components/AntdProvider.tsx`, sur `lib/jetons.ts`. Pas de `theme={{…}}` dans une page,
   pas de `!important`, pas de sélecteur `.ant-*`, pas de style global ponctuel.
 - Boutons antd choisis par intention : `primary` = action principale, défaut = secondaire, `text` = tertiaire, `link` seulement avec un vrai `href`.
   Aucune classe de couleur, bordure ou rayon posée sur un `Button`.

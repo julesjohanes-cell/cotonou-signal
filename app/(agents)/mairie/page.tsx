@@ -35,7 +35,7 @@ export default function Mairie() {
         <TableauDeBord session={profil} onDeconnexion={quitter} />
       ) : (
         <main className="p-6 text-center">
-          Session expirée. <Link href="/connexion?suite=/mairie" className="text-violet-900 underline">Se reconnecter</Link>
+          Session expirée. <Link href="/connexion?suite=/mairie" className="text-violet underline">Se reconnecter</Link>
         </main>
       )}
     </>
@@ -91,7 +91,7 @@ function TableauDeBord({ session, onDeconnexion }: { session: Profil; onDeconnex
       render: (_, s) => (
         <div>
           <div className="font-semibold"><LibelleCategorie code={s.categorie} /></div>
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-encre-pale">
             {s.numero_suivi} · {dateCourte(s.cree_le)}{s.nb_confirmations > 1 ? ` · +${s.nb_confirmations - 1}` : ""}
           </div>
         </div>
@@ -148,7 +148,7 @@ function TableauDeBord({ session, onDeconnexion }: { session: Profil; onDeconnex
               title={<LibelleCategorie code={choisi.categorie} />}
               extra={<Button type="text" onClick={() => setSelection(null)} aria-label="Fermer" icon={<CloseOutlined />} />}
             >
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-encre-pale">
                 {choisi.numero_suivi} · {choisi.source} · ± {choisi.precision_m} m · {choisi.service} · {dateCourte(choisi.cree_le)}
               </p>
               {choisi.description && <p className="text-sm">{choisi.description}</p>}
@@ -156,11 +156,11 @@ function TableauDeBord({ session, onDeconnexion }: { session: Profil; onDeconnex
                 {choisi.photo_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={choisi.photo_url} alt="Avant" className="h-32 w-full rounded-lg object-cover" />
-                ) : <div className="flex h-32 items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-400">Pas de photo</div>}
+                ) : <div className="flex h-32 items-center justify-center rounded-lg bg-teinte text-xs text-encre-pale">Pas de photo</div>}
                 {choisi.photo_apres_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={choisi.photo_apres_url} alt="Après" className="h-32 w-full rounded-lg object-cover" />
-                ) : <div className="flex h-32 items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-400">Photo après : à venir</div>}
+                ) : <div className="flex h-32 items-center justify-center rounded-lg bg-teinte text-xs text-encre-pale">Photo après : à venir</div>}
               </div>
               <Segmented<Statut>
                 block
@@ -192,7 +192,7 @@ function TableauDeBord({ session, onDeconnexion }: { session: Profil; onDeconnex
             dataSource={liste}
             pagination={{ pageSize: 20, hideOnSinglePage: true }}
             onRow={(s) => ({ onClick: () => setSelection(s.numero_suivi), className: "cursor-pointer" })}
-            rowClassName={(s) => (s.numero_suivi === selection ? "bg-violet-50" : "")}
+            rowClassName={(s) => (s.numero_suivi === selection ? "bg-teinte" : "")}
           />
         </div>
       </div>

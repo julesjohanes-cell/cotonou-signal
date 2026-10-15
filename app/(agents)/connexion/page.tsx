@@ -15,7 +15,7 @@ function FormulaireConnexion() {
 
   return (
     <main className="mx-auto flex w-full max-w-sm flex-col gap-3 p-6">
-      <h1 className="text-xl font-bold text-violet-950">Connexion agent</h1>
+      <h1 className="text-xl font-bold text-marque">Connexion agent</h1>
       <Form
         layout="vertical"
         onFinish={async (v: { identifiant: string; motDePasse?: string }) => {

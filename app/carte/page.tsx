@@ -37,22 +37,22 @@ export default function Carte() {
       <Entete titre="Carte" />
       <main className="flex flex-1 flex-col gap-3 p-3">
         {isError && (
-          <div className="flex items-center justify-between rounded-xl bg-red-50 p-3 text-sm text-red-800">
+          <div className="flex items-center justify-between rounded-xl bg-erreur-fond p-3 text-sm text-erreur">
             Impossible de charger les signalements.
-            <button type="button" onClick={() => refetch()} className="min-h-11 rounded-lg bg-white px-4 font-semibold">
+            <button type="button" onClick={() => refetch()} className="min-h-11 rounded-lg bg-surface px-4 font-semibold">
               Réessayer
             </button>
           </div>
         )}
         <div className="flex gap-2 text-sm">
-          <span className="rounded-lg bg-white px-3 py-1 shadow-sm">{isPending ? "Chargement…" : `${liste.length} signalements`}</span>
-          <span className="rounded-lg bg-white px-3 py-1 shadow-sm">{resolus} résolus</span>
+          <span className="rounded-lg bg-surface px-3 py-1 shadow-sm">{isPending ? "Chargement…" : `${liste.length} signalements`}</span>
+          <span className="rounded-lg bg-surface px-3 py-1 shadow-sm">{resolus} résolus</span>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
           <button
             type="button"
             onClick={() => setFiltre(null)}
-            className={`min-h-11 shrink-0 rounded-full px-4 text-sm ${!filtre ? "bg-violet-900 text-white" : "bg-white"}`}
+            className={`min-h-11 shrink-0 rounded-full px-4 text-sm ${!filtre ? "bg-violet text-sur-marque" : "bg-surface"}`}
           >
             Tout
           </button>
@@ -61,7 +61,7 @@ export default function Carte() {
               type="button"
               key={c.code}
               onClick={() => setFiltre(c.code)}
-              className={`min-h-11 shrink-0 rounded-full px-4 text-sm ${filtre === c.code ? "bg-violet-900 text-white" : "bg-white"}`}
+              className={`min-h-11 shrink-0 rounded-full px-4 text-sm ${filtre === c.code ? "bg-violet text-sur-marque" : "bg-surface"}`}
             >
               {c.icone} {c.libelle}
             </button>
@@ -78,13 +78,13 @@ export default function Carte() {
             ))}
         </div>
         {choisi && (
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-white p-3 shadow">
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-surface p-3 shadow">
             <div>
               <p className="font-semibold"><LibelleCategorie code={choisi.categorie} /></p>
-              <p className="text-xs text-gray-500">Signalé {depuis(choisi.cree_le)} · {choisi.nb_confirmations} confirmation(s)</p>
+              <p className="text-xs text-encre-pale">Signalé {depuis(choisi.cree_le)} · {choisi.nb_confirmations} confirmation(s)</p>
               <BadgeStatut statut={choisi.statut} />
             </div>
-            <Link href={`/suivi/${choisi.numero_suivi}`} className="flex min-h-11 items-center rounded-lg bg-violet-900 px-4 text-sm text-white">
+            <Link href={`/suivi/${choisi.numero_suivi}`} className="flex min-h-11 items-center rounded-lg bg-violet px-4 text-sm text-sur-marque">
               Détails
             </Link>
           </div>

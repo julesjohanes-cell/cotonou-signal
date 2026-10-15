@@ -11,7 +11,7 @@ export default function SaisieSuivi() {
     <>
       <Entete titre="Suivi" />
       <main className="flex flex-1 flex-col gap-3 p-4 sm:p-6">
-        <h1 className="text-xl font-bold text-violet-950">Suivre mon signalement</h1>
+        <h1 className="text-xl font-bold text-marque">Suivre mon signalement</h1>
         <form
           className="flex gap-2"
           onSubmit={(e) => {
@@ -23,9 +23,9 @@ export default function SaisieSuivi() {
             value={numero}
             onChange={(e) => setNumero(e.target.value)}
             placeholder="CS-2026-00001"
-            className="flex-1 rounded-xl border p-3 font-mono uppercase"
+            className="flex-1 rounded-xl border border-contour bg-surface p-3 font-mono uppercase placeholder:text-encre-pale"
           />
-          <button className="min-h-11 rounded-xl bg-violet-900 px-5 font-semibold text-white">OK</button>
+          <button className="min-h-11 rounded-xl bg-violet px-5 font-semibold text-sur-marque">OK</button>
         </form>
       </main>
     </>

@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 
 const Chargement = () => (
-  <div className="flex h-72 w-full items-center justify-center rounded-xl bg-violet-50 text-sm text-violet-900">
+  <div className="flex h-72 w-full items-center justify-center rounded-xl bg-teinte text-sm text-violet">
     Chargement de la carte…
   </div>
 );

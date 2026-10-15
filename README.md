@@ -24,6 +24,13 @@ Chaque écran est conçu et testé d'abord pour un téléphone de **360 px** de 
 de l'écran, champs en 16 px, hauteurs en `dvh`, aucun défilement horizontal. Ant Design n'est chargé que dans `app/(agents)/` :
 les pages citoyennes restent légères. `tests/e2e/mobile.spec.ts` vérifie tout cela à chaque PR. Détails : `AGENTS.md`, section 3.
 
+## Design system
+
+Les couleurs viennent du design system « Cotonou Signale » (brief Cotonou Code la nuit), qui sert aussi aux maquettes Claude Design.
+Elles sont déclarées une seule fois dans le `@theme` de `app/globals.css` (`bg-marque`, `text-encre-douce`, `border-filet`…),
+avec leur miroir `lib/jetons.ts` pour antd et la carte. La palette Tailwind par défaut est désactivée ;
+`tests/unit/jetons.test.ts` vérifie les deux fichiers, les contrastes et l'absence de toute autre couleur.
+
 ## Tests et vérification
 
 ```bash
@@ -88,7 +95,7 @@ une seule URL, **pas de CORS** à configurer côté Django.
 | `@tanstack/react-query` | Cache, chargement et erreurs gérés, rafraîchissement auto de la carte, nouvelle tentative sur réseau instable, invalidation après un signalement |
 | `axios` | Un seul client HTTP : intercepteurs (jeton, erreurs 422 → `ApiError`), délai, **progression de l'envoi de la photo** |
 | `antd`, `@ant-design/nextjs-registry`, `@ant-design/icons` | Composants accessibles en français (formulaires, tableaux, messages), thème aux couleurs du brief, styles rendus côté serveur |
-| `tailwindcss` 4 | Mise en page mobile rapide, jetons de couleur partagés |
+| `tailwindcss` 4 | Mise en page mobile rapide, jetons du design system (`@theme` de `app/globals.css`) |
 | `dayjs` | Dates en français (« il y a 3 jours ») ; c'est aussi la bibliothèque de dates d'antd |
 | `maplibre-gl` | Carte vectorielle libre (OpenStreetMap), sans clé ni quota |
 | `vitest`, `@testing-library/react`, `jsdom` | Tests unitaires et de composants, rapides |
