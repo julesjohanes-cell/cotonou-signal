@@ -10,8 +10,13 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Cotonou Signale — guide des agents (et des humains)
 
-Ce fichier est la **source unique** des règles du front. `CLAUDE.md` y renvoie ; on n'écrit pas les règles ailleurs
-(ni dans un prompt, ni en double dans un autre fichier). Une règle manque ? On l'ajoute ici, dans une PR.
+Ce fichier est la **source unique** des règles du front, au format ouvert [AGENTS.md](https://agents.md) :
+**le même fichier pour tous les agents**, quel que soit le fournisseur (Claude, ChatGPT/Codex, Gemini, Copilot, Cursor…).
+
+- **Aucun fichier d'instructions propre à un outil** : pas de `CLAUDE.md`, `GEMINI.md`, `CHATGPT.md`, `.cursorrules`,
+  `.github/copilot-instructions.md`… `pnpm check:agents` (lancé par `pnpm verify` et la CI) refuse ces fichiers.
+- Un outil qui ne charge pas `AGENTS.md` tout seul reçoit comme première consigne : « Lis AGENTS.md et applique-le ».
+- On n'écrit pas les règles ailleurs (ni dans un prompt, ni en double). Une règle manque ? On l'ajoute ici, dans une PR.
 
 ## 1. Avant de coder : lire, dans cet ordre
 

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "check:agents": "node scripts/check-agents.mjs",
+    "verify": "pnpm check:agents && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "api:generate": "swagger-typescript-api generate -p http://localhost:8000/api/schema/ -o lib/generated -n api-django.ts --no-client",
     "demo:cd": "bash scripts/demo-continue.sh",
     "postinstall": "node -e \"require('fs').copyFileSync('node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs','public/maplibre-gl-worker.js')\""

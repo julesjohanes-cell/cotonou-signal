@@ -22,7 +22,9 @@ pnpm verify        # lint + types + tests + build : obligatoire avant chaque PR
 pnpm test:e2e      # parcours de bout en bout (Playwright), après un build
 ```
 
-Chaque fonctionnalité arrive avec ses tests. Règles complètes pour les humains et les agents IA : `AGENTS.md`.
+Chaque fonctionnalité arrive avec ses tests. Règles complètes pour les humains et les agents IA : `AGENTS.md`,
+**un seul fichier pour tous les outils** (Claude, ChatGPT/Codex, Gemini, Copilot, Cursor…) ; aucun `CLAUDE.md`, `GEMINI.md`
+ou équivalent (`pnpm check:agents` les refuse). Si un outil ne le lit pas tout seul : « Lis AGENTS.md et applique-le ».
 Résultats de l'atelier design thinking (personas, parcours testés, priorités) : `docs/design-thinking.md`.
 
 ## CI/CD

@@ -46,3 +46,9 @@ next-env.d.ts
 # Démo continue
 .demo.log
 .demo.pid
+
+# Dossiers locaux des outils IA (les règles communes sont dans AGENTS.md)
+.claude/
+.gemini/
+.cursor/
+.codex/
