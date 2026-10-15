@@ -74,10 +74,10 @@ describe("jetons : globals.css et lib/jetons.ts disent la même chose", () => {
   });
 
   it("colore les statuts avec les jetons", () => {
-    expect(STATUTS.nouveau.couleur).toBe(COULEURS.statutNouveau);
-    expect(STATUTS.pris_en_charge.couleur).toBe(COULEURS.statutPrisEnCharge);
-    expect(STATUTS.resolu.couleur).toBe(COULEURS.statutResolu);
-    expect(STATUTS.rejete.couleur).toBe(COULEURS.statutRejete);
+    expect(STATUTS.published.couleur).toBe(COULEURS.statutNouveau);
+    expect(STATUTS.in_progress.couleur).toBe(COULEURS.statutPrisEnCharge);
+    expect(STATUTS.resolved.couleur).toBe(COULEURS.statutResolu);
+    expect(STATUTS.rejected.couleur).toBe(COULEURS.statutRejete);
   });
 });
 
@@ -101,10 +101,12 @@ describe("jetons : contrastes (texte 4,5:1, contours et focus 3:1)", () => {
     ["succes sur succes-fond", c.succes, c.succesFond],
     ["attente sur attente-fond", c.attente, c.attenteFond],
     ["neutre sur neutre-fond", c.neutre, c.neutreFond],
-    ["badge Nouveau", c.surMarque, c.statutNouveau],
+    ["badge Publié", c.surMarque, c.statutNouveau],
     ["badge Pris en charge", c.surMarque, c.statutPrisEnCharge],
     ["badge Résolu", c.surMarque, c.statutResolu],
     ["badge Rejeté", c.surMarque, c.statutRejete],
+    ["badge En cours de vérification", c.surMarque, c.neutre],
+    ["badge En modération", c.surMarque, c.violet],
     ["pastille +N", c.surMarque, c.pastilleConfirmations],
   ];
   for (const [nom, avant, fond] of texte) {

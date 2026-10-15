@@ -1,20 +1,20 @@
 "use client";
-// BONUS — espace agent / élu en front (Ant Design). Par défaut, la mairie travaille dans Django admin.
-// ÉQUIPE MAIRIE — espace agent / élu (Ant Design) : voir les points, changer le statut, ajouter la photo "après"
+// BONUS — espace agents en front (Ant Design). Par défaut, la mairie travaille dans Django admin.
+// Voir les signalements de ses services, les prendre en charge, les résoudre avec la photo « après ».
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CloseOutlined } from "@ant-design/icons";
-import { App, Button, Card, Segmented, Select, Statistic, Table, Tag } from "antd";
+import { App, Button, Card, Select, Statistic, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Entete, LibelleCategorie } from "@/components/ui";
 import { dateCourte } from "@/lib/dates";
-import { useAjouterPhotoApres, useChangerStatut, useSignalementsMairie } from "@/hooks/useSignalements";
+import { useAjouterPhotoApres, useChangerStatut, useSignalementsAgent } from "@/hooks/useSignalements";
 import { MapView, type Marqueur } from "@/components/carte";
 import CameraCapture from "@/components/CameraCapture";
-import { abonnerSession, deconnexion, lireProfilBrut, ApiError } from "@/lib/api";
-import { SERVICES, STATUTS, categorie } from "@/lib/categories";
-import type { Profil, SignalementMairie, Statut } from "@/lib/types";
+import { abonnerSession, deconnexion, lireProfilBrut, ApiError, SUIVANT } from "@/lib/api";
+import { STATUTS, categorie, servicesDe } from "@/lib/categories";
+import type { Profil, SignalementAgent, Statut, StatutAgent } from "@/lib/types";
 
 // Route protégée : proxy.ts redirige vers /connexion sans session, avant même d'afficher cette page.
 export default function Mairie() {
@@ -42,14 +42,16 @@ export default function Mairie() {
   );
 }
 
+const ACTION: Record<StatutAgent, string> = { in_progress: "Prendre en charge", resolved: "Marquer résolu" };
+
 function TableauDeBord({ session, onDeconnexion }: { session: Profil; onDeconnexion: () => void }) {
   const { message } = App.useApp();
   const [statut, setStatut] = useState<Statut | undefined>();
-  const [service, setService] = useState<string | undefined>(session.service ?? undefined);
   const [selection, setSelection] = useState<string | null>(null);
 
-  // Rafraîchi toutes les 10 s par le hook : le signalement fait en direct apparaît pendant la démo
-  const { data, error } = useSignalementsMairie({ statut, service });
+  // Rafraîchi toutes les 10 s par le hook : le signalement fait en direct apparaît pendant la démo.
+  // Django ne renvoie que les catégories des services de l'agent.
+  const { data, error } = useSignalementsAgent({ status: statut });
   const liste = useMemo(() => data ?? [], [data]);
   const statutMaj = useChangerStatut();
   const photoApres = useAjouterPhotoApres();
@@ -61,83 +63,75 @@ function TableauDeBord({ session, onDeconnexion }: { session: Profil; onDeconnex
   const marqueurs: Marqueur[] = useMemo(
     () =>
       liste.map((s) => ({
-        id: s.numero_suivi, lat: s.lat, lng: s.lng, couleur: STATUTS[s.statut].couleur,
-        contenu: categorie(s.categorie).icone, titre: categorie(s.categorie).libelle, badge: s.nb_confirmations,
+        id: s.tracking_code, lat: s.lat, lng: s.lng, couleur: STATUTS[s.status].couleur,
+        contenu: categorie(s.category).icone, titre: categorie(s.category).libelle, badge: s.support_count,
       })),
     [liste],
   );
-  const choisi = liste.find((s) => s.numero_suivi === selection) ?? null;
+  const choisi = liste.find((s) => s.tracking_code === selection) ?? null;
+  const suivant = choisi ? SUIVANT[choisi.status] : undefined;
 
   const stats = useMemo(() => {
-    const n = (st: Statut) => liste.filter((s) => s.statut === st).length;
+    const n = (st: Statut) => liste.filter((s) => s.status === st).length;
     const total = liste.length;
-    return { total, nouveau: n("nouveau"), encours: n("pris_en_charge"), resolu: n("resolu"), taux: total ? Math.round((n("resolu") / total) * 100) : 0 };
+    return { total, nouveau: n("published"), encours: n("in_progress"), resolu: n("resolved"), taux: total ? Math.round((n("resolved") / total) * 100) : 0 };
   }, [liste]);
 
-  async function majStatut(st: Statut) {
-    if (!choisi) return;
+  async function avancer(code: string, st: StatutAgent) {
     try {
-      await statutMaj.mutateAsync({ numero: choisi.numero_suivi, statut: st });
+      await statutMaj.mutateAsync({ code, status: st });
       message.success(`Statut : ${STATUTS[st].libelle}`);
     } catch (e) {
       message.error(e instanceof ApiError ? e.message : "Modification impossible");
     }
   }
 
-  const colonnes: ColumnsType<SignalementMairie> = [
+  const colonnes: ColumnsType<SignalementAgent> = [
     {
       title: "Problème",
-      key: "categorie",
+      key: "category",
       render: (_, s) => (
         <div>
-          <div className="font-semibold"><LibelleCategorie code={s.categorie} /></div>
+          <div className="font-semibold"><LibelleCategorie code={s.category} /></div>
           <div className="text-xs text-encre-pale">
-            {s.numero_suivi} · {dateCourte(s.cree_le)}{s.nb_confirmations > 1 ? ` · +${s.nb_confirmations - 1}` : ""}
+            {s.tracking_code} · {dateCourte(s.created_at)}{s.support_count > 1 ? ` · +${s.support_count - 1}` : ""}
           </div>
         </div>
       ),
     },
     {
       title: "Statut",
-      key: "statut",
+      key: "status",
       width: 130,
-      render: (_, s) => <Tag color={STATUTS[s.statut].couleur}>{STATUTS[s.statut].libelle}</Tag>,
+      render: (_, s) => <Tag color={STATUTS[s.status].couleur}>{STATUTS[s.status].libelle}</Tag>,
     },
   ];
 
   return (
     <main className="flex flex-1 flex-col gap-3 p-3">
       <div className="flex items-center justify-between text-sm">
-        <span>Connecté : <b>{session.nom}</b> ({session.role})</span>
+        <span>
+          Connecté : <b>{session.username}</b> ({session.services.length ? session.services.join(", ") : "tous les services"})
+        </span>
         <Button type="link" onClick={onDeconnexion}>Déconnexion</Button>
       </div>
 
       {/* Chiffres pour l'élu */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <Card size="small"><Statistic title="Total" value={stats.total} /></Card>
-        <Card size="small"><Statistic title="Nouveaux" value={stats.nouveau} /></Card>
-        <Card size="small"><Statistic title="En cours" value={stats.encours} /></Card>
+        <Card size="small"><Statistic title="Publiés" value={stats.nouveau} /></Card>
+        <Card size="small"><Statistic title="Pris en charge" value={stats.encours} /></Card>
         <Card size="small"><Statistic title="Résolus" value={stats.resolu} suffix={`(${stats.taux} %)`} /></Card>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Select
-          allowClear
-          placeholder="Tous les statuts"
-          value={statut}
-          onChange={setStatut}
-          className="min-w-44"
-          options={Object.entries(STATUTS).map(([k, v]) => ({ value: k as Statut, label: v.libelle }))}
-        />
-        <Select
-          allowClear
-          placeholder="Tous les services"
-          value={service}
-          onChange={setService}
-          className="min-w-56"
-          options={SERVICES.map((s) => ({ value: s, label: s }))}
-        />
-      </div>
+      <Select
+        allowClear
+        placeholder="Tous les statuts"
+        value={statut}
+        onChange={setStatut}
+        className="min-w-44 self-start"
+        options={Object.entries(STATUTS).map(([k, v]) => ({ value: k as Statut, label: v.libelle }))}
+      />
 
       <div className="grid gap-3 md:grid-cols-2">
         <MapView marqueurs={marqueurs} selection={selection} onSelection={setSelection} className="h-80 w-full rounded-xl md:h-[70dvh]" />
@@ -145,11 +139,11 @@ function TableauDeBord({ session, onDeconnexion }: { session: Profil; onDeconnex
           {choisi && (
             <Card
               size="small"
-              title={<LibelleCategorie code={choisi.categorie} />}
+              title={<LibelleCategorie code={choisi.category} />}
               extra={<Button type="text" onClick={() => setSelection(null)} aria-label="Fermer" icon={<CloseOutlined />} />}
             >
               <p className="text-xs text-encre-pale">
-                {choisi.numero_suivi} · {choisi.source} · ± {choisi.precision_m} m · {choisi.service} · {dateCourte(choisi.cree_le)}
+                {choisi.tracking_code} · {choisi.channel === "whatsapp" ? "WhatsApp" : "Web"} · {servicesDe(choisi.category)} · {dateCourte(choisi.created_at)}
               </p>
               {choisi.description && <p className="text-sm">{choisi.description}</p>}
               <div className="my-2 grid grid-cols-2 gap-2">
@@ -157,24 +151,24 @@ function TableauDeBord({ session, onDeconnexion }: { session: Profil; onDeconnex
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={choisi.photo_url} alt="Avant" className="h-32 w-full rounded-lg object-cover" />
                 ) : <div className="flex h-32 items-center justify-center rounded-lg bg-teinte text-xs text-encre-pale">Pas de photo</div>}
-                {choisi.photo_apres_url ? (
+                {choisi.photo_after_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={choisi.photo_apres_url} alt="Après" className="h-32 w-full rounded-lg object-cover" />
+                  <img src={choisi.photo_after_url} alt="Après" className="h-32 w-full rounded-lg object-cover" />
                 ) : <div className="flex h-32 items-center justify-center rounded-lg bg-teinte text-xs text-encre-pale">Photo après : à venir</div>}
               </div>
-              <Segmented<Statut>
-                block
-                value={choisi.statut}
-                onChange={majStatut}
-                options={(["nouveau", "pris_en_charge", "resolu", "rejete"] as Statut[]).map((st) => ({ value: st, label: STATUTS[st].libelle }))}
-              />
-              {choisi.statut === "resolu" && !choisi.photo_apres_url && (
+              {/* Transitions contrôlées par Django : published → in_progress → resolved */}
+              {suivant && (
+                <Button type="primary" block loading={statutMaj.isPending} onClick={() => avancer(choisi.tracking_code, suivant)}>
+                  {ACTION[suivant]}
+                </Button>
+              )}
+              {(choisi.status === "in_progress" || (choisi.status === "resolved" && !choisi.photo_after_url)) && (
                 <div className="mt-3">
                   <CameraCapture
-                    libelle="Ajouter la photo après"
+                    libelle={choisi.status === "in_progress" ? "Résoudre avec la photo après" : "Ajouter la photo après"}
                     onPhoto={async (p) => {
                       try {
-                        await photoApres.mutateAsync({ numero: choisi.numero_suivi, photo: p.blob });
+                        await photoApres.mutateAsync({ code: choisi.tracking_code, photo: p.blob });
                         message.success("Photo « après » ajoutée");
                       } catch (e) {
                         message.error(e instanceof ApiError ? e.message : "Envoi impossible");
@@ -185,14 +179,14 @@ function TableauDeBord({ session, onDeconnexion }: { session: Profil; onDeconnex
               )}
             </Card>
           )}
-          <Table<SignalementMairie>
+          <Table<SignalementAgent>
             size="small"
-            rowKey="numero_suivi"
+            rowKey="tracking_code"
             columns={colonnes}
             dataSource={liste}
             pagination={{ pageSize: 20, hideOnSinglePage: true }}
-            onRow={(s) => ({ onClick: () => setSelection(s.numero_suivi), className: "cursor-pointer" })}
-            rowClassName={(s) => (s.numero_suivi === selection ? "bg-teinte" : "")}
+            onRow={(s) => ({ onClick: () => setSelection(s.tracking_code), className: "cursor-pointer" })}
+            rowClassName={(s) => (s.tracking_code === selection ? "bg-teinte" : "")}
           />
         </div>
       </div>

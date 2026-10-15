@@ -1,7 +1,7 @@
 // Petits composants partagés (mise en page, statut, catégorie).
 // Utilisables côté serveur : pas d'antd ni d'icônes antd ici (elles exigent un composant client).
 import Link from "next/link";
-import type { CategorieCode, Statut } from "@/lib/types";
+import type { Statut } from "@/lib/types";
 import { categorie, STATUTS } from "@/lib/categories";
 import { MOCKS } from "@/lib/api";
 
@@ -36,7 +36,8 @@ export function BadgeStatut({ statut }: { statut: Statut }) {
   );
 }
 
-export function LibelleCategorie({ code }: { code: CategorieCode }) {
+/** `code` : slug renvoyé par l'API (category). */
+export function LibelleCategorie({ code }: { code: string }) {
   const c = categorie(code);
   return (
     <span className="inline-flex items-center gap-1">

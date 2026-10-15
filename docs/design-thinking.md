@@ -36,7 +36,7 @@ Règle de passage : impact fort et effort faible = P0 ; impact fort et effort mo
 ## 4. Prototyper : les 3 parcours papier
 
 1. Citoyen sur l'app web (`/signaler`) : [étapes du parcours papier]
-2. Citoyen sur WhatsApp (`/s/[token]`) : [étapes du parcours papier]
+2. Citoyen sur WhatsApp (`/capture/[token]`) : [étapes du parcours papier]
 3. Agent de la mairie (`/mairie`) : [étapes du parcours papier]
 
 ## 5. Tester : retours de l'autre groupe

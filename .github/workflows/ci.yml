@@ -54,6 +54,9 @@ jobs:
       - name: Règles des agents (AGENTS.md uniquement)
         run: pnpm check:agents
 
+      - name: Types d'API à jour avec le contrat (contrat/openapi.yaml)
+        run: pnpm api:check
+
       - name: Lint, types et tests unitaires (en parallèle)
         run: |
           # Les trois contrôles tournent en même temps. Vert : journal replié. Rouge : journal affiché en entier.

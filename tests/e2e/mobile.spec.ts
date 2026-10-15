@@ -3,7 +3,8 @@ import { expect, test } from "@playwright/test";
 // Mobile d'abord : un petit Android d'entrée de gamme (360 px de large) est la cible de référence.
 test.use({ viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
 
-const PAGES_CITOYENNES = ["/", "/signaler", "/carte", "/suivi", "/suivi/CS-2026-00001", "/s/lien-valide"];
+// Codes simulés : voir codeSuivi (lib/mocks.ts) ; /capture/lien-valide ouvre le parcours WhatsApp en mode simulé
+const PAGES_CITOYENNES = ["/", "/signaler", "/carte", "/suivi", "/suivi/CS-7WDRQP", "/capture/lien-valide"];
 
 for (const route of PAGES_CITOYENNES) {
   test(`${route} tient à 360 px, sans défilement horizontal, cibles tactiles de 44 px`, async ({ page }) => {
@@ -38,8 +39,8 @@ test("les pages citoyennes ne chargent pas Ant Design", async ({ page }) => {
 
 test("le logotype de l'en-tête tient sur une ligne, avec son espace : « Cotonou Signale »", async ({ page }) => {
   // Le lien est en flex : sans span autour du texte, l'espace avant « Signale » disparaissait à l'écran.
-  // /s/[token] n'a pas de flèche retour mais un titre long : le logotype ne doit pas passer sur deux lignes.
-  for (const route of ["/", "/s/lien-valide"]) {
+  // /capture/[token] n'a pas de flèche retour mais un titre long : le logotype ne doit pas passer sur deux lignes.
+  for (const route of ["/", "/capture/lien-valide"]) {
     await page.goto(route);
     const logo = page.locator('header a[href="/"]');
     // innerText reflète le rendu ("Cotonou\nSignale" quand l'espace saute) ; toHaveText normaliserait les espaces.

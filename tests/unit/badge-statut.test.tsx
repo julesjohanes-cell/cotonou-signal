@@ -8,7 +8,7 @@ afterEach(cleanup);
 
 describe("composants d'affichage", () => {
   it("affiche le libellé français du statut", () => {
-    render(<BadgeStatut statut="pris_en_charge" />);
+    render(<BadgeStatut statut="in_progress" />);
     expect(screen.getByText("Pris en charge")).toBeTruthy();
   });
 

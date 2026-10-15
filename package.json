@@ -12,7 +12,9 @@
     "test:e2e": "playwright test",
     "check:agents": "node scripts/check-agents.mjs",
     "verify": "pnpm check:agents && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
-    "api:generate": "swagger-typescript-api generate -p http://localhost:8000/api/schema/ -o lib/generated -n api-django.ts --no-client",
+    "api:generate": "swagger-typescript-api generate -p contrat/openapi.yaml -o lib/generated -n api-django.ts --no-client --enum-style=union --extract-request-body",
+    "api:sync": "B=\"${BACK_DIR:-../cotonou-signal-back}\"; cp \"$B/docs/openapi.yaml\" \"$B/docs/api-contract.md\" contrat/ && pnpm api:generate",
+    "api:check": "pnpm api:generate && git diff --exit-code -- lib/generated",
     "demo:cd": "bash scripts/demo-continue.sh",
     "postinstall": "node -e \"require('fs').copyFileSync('node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs','public/maplibre-gl-worker.js')\""
   },
